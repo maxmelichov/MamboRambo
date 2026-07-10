@@ -1,0 +1,9 @@
+{
+  "bundle": {
+    "externalBin": ["binaries/chirp-server"],
+    "macOS": {
+      "entitlements": "entitlements.plist",
+      "hardenedRuntime": true
+    }
+  }
+}

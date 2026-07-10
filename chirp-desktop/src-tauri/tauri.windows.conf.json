@@ -1,0 +1,11 @@
+{
+  "bundle": {
+    "externalBin": ["binaries/chirp-server"],
+    "windows": {
+      "signCommand": {
+        "cmd": "uv.exe",
+        "args": ["run", "../../scripts/sign_windows.py", "%1"]
+      }
+    }
+  }
+}
