@@ -73,6 +73,7 @@ jobs:
             librsvg2-dev \
             patchelf \
             cmake \
+            git \
             clang \
             libclang-dev \
             libasound2-dev

@@ -13,19 +13,24 @@ fi
 docker run --rm \
   --platform linux/amd64 \
   -v "$ROOT:/workspace" \
+  -v mamborambo-desktop-node-modules:/workspace/mamborambo-desktop/node_modules \
   -w /workspace \
+  -e CI=true \
   -e ORT_STRATEGY=system \
-  -e ORT_LIB_LOCATION=/workspace/crates/blue-rs/.ort/onnxruntime-linux-x64-1.23.2 \
+  -e ORT_LIB_LOCATION=/workspace/crates/blue-rs/.ort/onnxruntime-linux-x64-1.23.2/lib \
   -e ORT_PREFER_DYNAMIC_LINK=1 \
   -e LD_LIBRARY_PATH=/workspace/crates/blue-rs/.ort/onnxruntime-linux-x64-1.23.2/lib \
+  -e LIBRARY_PATH=/workspace/crates/blue-rs/.ort/onnxruntime-linux-x64-1.23.2/lib \
+  -e RUSTFLAGS="-L native=/workspace/crates/blue-rs/.ort/onnxruntime-linux-x64-1.23.2/lib" \
   -e APPIMAGE_EXTRACT_AND_RUN=1 \
   -e NO_STRIP=true \
   "$IMAGE" \
   bash -lc '
     set -euo pipefail
     export PATH="/root/.cargo/bin:/root/.local/bin:$PATH"
+    export CI=true
     uv run scripts/pre_build.py --target x86_64-unknown-linux-gnu
-    pnpm --dir mamborambo-desktop install
+    pnpm --dir mamborambo-desktop install --frozen-lockfile
     pnpm --dir mamborambo-desktop exec tauri build --target x86_64-unknown-linux-gnu
   '
 

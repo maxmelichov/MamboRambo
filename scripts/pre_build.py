@@ -160,14 +160,19 @@ def main() -> int:
     print("+", " ".join(cmd))
     build_env = os.environ.copy()
     ort_root = download_ort(target)
-    build_env["ORT_STRATEGY"] = "system"
-    build_env["ORT_LIB_LOCATION"] = str(ort_root)
-    build_env["ORT_PREFER_DYNAMIC_LINK"] = "1"
     lib_dir = ort_root / "lib"
+    build_env["ORT_STRATEGY"] = "system"
+    # ort-sys treats ORT_LIB_LOCATION as a direct -L path for the shared library.
+    build_env["ORT_LIB_LOCATION"] = str(lib_dir if lib_dir.exists() else ort_root)
+    build_env["ORT_PREFER_DYNAMIC_LINK"] = "1"
     if lib_dir.exists():
         path_key = "PATH" if is_windows else "LD_LIBRARY_PATH" if is_linux else "DYLD_LIBRARY_PATH"
         current = build_env.get(path_key, "")
         build_env[path_key] = f"{lib_dir}{os.pathsep}{current}" if current else str(lib_dir)
+        library_path = build_env.get("LIBRARY_PATH", "")
+        build_env["LIBRARY_PATH"] = f"{lib_dir}{os.pathsep}{library_path}" if library_path else str(lib_dir)
+        rustflags = build_env.get("RUSTFLAGS", "")
+        build_env["RUSTFLAGS"] = f"{rustflags} -L native={lib_dir}".strip()
     if is_macos:
         build_env["RUSTFLAGS"] = f"{build_env.get('RUSTFLAGS', '')} -C link-arg=-Wl,-headerpad_max_install_names".strip()
     subprocess.run(cmd, cwd=ROOT, env=build_env, check=True)
