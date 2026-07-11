@@ -272,7 +272,7 @@ fn model_sources() -> ModelSources {
                 name: "BlueTTS".to_string(),
                 version: BLUE_MODELS_TAG.to_string(),
                 size: "~275 MB".to_string(),
-                description: "Fast offline multilingual speech with Hebrew, English, Spanish, German, and Italian.".to_string(),
+                description: "Fast offline speech for Hebrew and English.".to_string(),
                 files: vec![
                     ModelSourceFile {
                         name: "duration_predictor.onnx".to_string(),

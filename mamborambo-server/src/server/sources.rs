@@ -40,7 +40,7 @@ pub fn model_sources() -> ModelSourcesResponse {
                 name: "BlueTTS",
                 version: BLUE_MODELS_TAG,
                 size: "~275 MB",
-                description: "Fast local multilingual speech with Hebrew, English, Spanish, German, and Italian.",
+                description: "Fast local speech for Hebrew and English.",
                 files: vec![
                     ModelSourceFile {
                         name: "duration_predictor.onnx",

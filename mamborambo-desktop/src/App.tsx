@@ -22,7 +22,7 @@ function App() {
     referencePath: "",
     languages: ["auto"],
     language: "auto",
-    blueVoice: "female1",
+    blueVoice: "Rotem",
     blueVoiceIds: [],
     audioPath: "",
     audioAutoplayPending: false,

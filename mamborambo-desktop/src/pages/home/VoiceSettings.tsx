@@ -3,17 +3,16 @@ import { AudioLines, ChevronRight, Languages, UserRound } from "lucide-react";
 import { Button, Card, Eyebrow } from "../../components/ui";
 
 const voiceLabels: Record<string, { name: string; detail: string }> = {
-  female1: { name: "Female 1", detail: "Clear feminine BlueTTS voice" },
-  male1: { name: "Male 1", detail: "Clear masculine BlueTTS voice" },
+  Rotem: { name: "Rotem", detail: "Clear feminine BlueTTS voice" },
+  Roi: { name: "Roi", detail: "Clear masculine BlueTTS voice" },
+  female1: { name: "Rotem", detail: "Clear feminine BlueTTS voice" },
+  male1: { name: "Roi", detail: "Clear masculine BlueTTS voice" },
 };
 
 const languageLabels: Record<string, string> = {
   auto: "Detect automatically",
   he: "Hebrew",
   en: "English",
-  es: "Spanish",
-  de: "German",
-  it: "Italian",
 };
 
 export function VoiceSettings({
@@ -33,7 +32,7 @@ export function VoiceSettings({
   setLanguage: (language: string) => void;
   setBlueVoice: (voice: string) => void;
 }) {
-  const voices = blueVoiceIds.length ? blueVoiceIds : ["female1", "male1"];
+  const voices = blueVoiceIds.length ? blueVoiceIds : ["Rotem", "Roi"];
 
   return (
     <Card className="space-y-8 border-none p-6 shadow-xl">

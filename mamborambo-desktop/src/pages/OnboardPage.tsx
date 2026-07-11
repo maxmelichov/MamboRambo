@@ -86,7 +86,7 @@ export function OnboardPage({ bundle, setBundle }: PageProps) {
       : "Starting";
   const stageLabel = progress?.stage === "extracting" ? "Optimizing models..." : "Downloading voice model...";
   const options = (sources.length ? sources : [
-    { id: "blue", name: "BlueTTS", version: "blue-onnx-v2", size: "~275 MB", description: "Multilingual local speech with Hebrew support", files: [], directory: "blue-onnx-v2" },
+    { id: "blue", name: "BlueTTS", version: "blue-onnx-v2", size: "~275 MB", description: "Local Hebrew and English speech", files: [], directory: "blue-onnx-v2" },
   ]) as ModelSource[];
 
   return (

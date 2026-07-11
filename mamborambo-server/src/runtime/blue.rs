@@ -11,7 +11,7 @@ use blue_rs::{
 
 use super::{Language as RuntimeLanguage, Runtime};
 
-const VOICES: [(&str, &str); 2] = [("female1", "female1.json"), ("male1", "male1.json")];
+const VOICES: [(&str, &str); 2] = [("Rotem", "female1.json"), ("Roi", "male1.json")];
 
 pub struct BlueRuntime {
     tts: BlueTts,
@@ -35,25 +35,31 @@ impl BlueRuntime {
                 .with_context(|| format!("load Blue voice style {}", path.display()))?;
             styles.insert(id.to_owned(), style);
         }
+        // Keep legacy ids working for existing clients.
+        styles.insert(
+            "female1".to_owned(),
+            VoiceStyle::from_json(voices_dir.join("female1.json"))?,
+        );
+        styles.insert(
+            "male1".to_owned(),
+            VoiceStyle::from_json(voices_dir.join("male1.json"))?,
+        );
 
         Ok(Self {
             tts,
             phonemizer,
             styles,
-            languages: vec![
-                language("en", 0),
-                language("he", 1),
-                language("es", 2),
-                language("de", 3),
-                language("it", 4),
-            ],
+            languages: vec![language("en", 0), language("he", 1)],
         })
     }
 
     fn language_for(text: &str, requested: &str) -> Result<(Language, &'static str)> {
         let requested = requested.trim().to_ascii_lowercase();
         let code = if requested.is_empty() || requested == "auto" {
-            if text.chars().any(|character| ('\u{0590}'..='\u{05ff}').contains(&character)) {
+            if text
+                .chars()
+                .any(|character| ('\u{0590}'..='\u{05ff}').contains(&character))
+            {
                 "he"
             } else {
                 "en"
@@ -64,12 +70,17 @@ impl BlueRuntime {
         let language = match code {
             "en" | "en-us" => Language::English,
             "he" => Language::Hebrew,
-            "es" => Language::Spanish,
-            "de" | "ge" => Language::German,
-            "it" => Language::Italian,
-            _ => bail!("unsupported Blue language `{code}`; expected he, en, es, de, or it"),
+            _ => bail!("unsupported Blue language `{code}`; expected he or en"),
         };
         Ok((language, language.code()))
+    }
+
+    fn normalize_voice(voice: &str) -> &str {
+        match voice.trim() {
+            "female1" => "Rotem",
+            "male1" => "Roi",
+            other => other,
+        }
     }
 }
 
@@ -90,11 +101,11 @@ impl Runtime for BlueRuntime {
         language: &str,
     ) -> Result<()> {
         let (_language, language_code) = Self::language_for(text, language)?;
-        let voice = voice.unwrap_or("female1");
+        let voice = Self::normalize_voice(voice.unwrap_or("Rotem"));
         let style = self
             .styles
             .get(voice)
-            .ok_or_else(|| anyhow::anyhow!("unknown Blue voice `{voice}`; expected female1 or male1"))?;
+            .ok_or_else(|| anyhow::anyhow!("unknown Blue voice `{voice}`; expected Rotem or Roi"))?;
         let audio = self.tts.synthesize_text(
             &mut self.phonemizer,
             text,
@@ -137,6 +148,7 @@ mod tests {
     fn detects_hebrew_and_rejects_unsupported_languages() {
         assert_eq!(BlueRuntime::language_for("שלום", "auto").unwrap().1, "he");
         assert_eq!(BlueRuntime::language_for("Hello", "auto").unwrap().1, "en");
+        assert!(BlueRuntime::language_for("Hola", "es").is_err());
         assert!(BlueRuntime::language_for("Bonjour", "fr").is_err());
     }
 }

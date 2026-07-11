@@ -38,7 +38,7 @@ pub async fn speech(State(server): State<SharedServer>, Json(body): Json<SpeechB
         return write_error(
             StatusCode::BAD_REQUEST,
             "invalid_request",
-            "BlueTTS supports only the saved female1 and male1 voices; voice cloning is unavailable",
+            "BlueTTS supports only the saved Rotem and Roi voices; voice cloning is unavailable",
         );
     }
 
