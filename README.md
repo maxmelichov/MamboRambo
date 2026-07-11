@@ -7,7 +7,7 @@
 <h1 align="center">MamboRambo</h1>
 
 <p align="center">
-  <strong>Native offline Qwen3-TTS for desktop</strong>
+  <strong>Native offline BlueTTS for desktop</strong>
 </p>
 
 <p align="center">
@@ -22,23 +22,21 @@
 
 <p align="center">
   <a target="_blank" href="https://maxmelichov.github.io/MamboRambo/">
-    <img width="800" alt="MamboRambo desktop screenshot" src="https://github.com/user-attachments/assets/dc83a3a1-20f9-4825-9425-1f113c8a5321" />
+    <img width="800" alt="MamboRambo desktop screenshot" src="./docs/images/mamborambo-studio.png" />
   </a>
 </p>
 
 ## Features
 
-- Local text-to-speech with Qwen3-TTS
+- Local text-to-speech with BlueTTS
 - Fully offline generation after the model is downloaded
-- Voice cloning from a reference WAV
-- Supported languages: English, Chinese, Japanese, Korean, German, French, Russian, Portuguese, Spanish, Italian, Hindi, and Brazilian Portuguese
+- Saved voices: Rotem and Roi
+- Supported languages: Hebrew and English
 - Audio preview after creation
 - 💻 Desktop support for `macOS`, `Windows`, and `Linux`
-- 🎮 Optimized for `Nvidia` / `AMD` / `Intel` GPUs
 - 🍎 Optimized desktop builds for Apple Silicon macOS
-- CLI support for creating WAV files
 - Local HTTP API with Swagger docs for tools and automation
-- Agent-ready `/skill` instructions and voice preset catalog for AI workflows
+- Agent-ready `/skill` instructions for AI workflows
 
 ## Build
 
