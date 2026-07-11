@@ -28,7 +28,6 @@ const DEFAULT_PACE_BLEND: f32 = 0.30;
 const MIXED_PACE_BLEND: f32 = 0.25;
 const REFERENCE_CODE_SPEED_SCALE: f32 = 0.90;
 const REFERENCE_CODE_SILENCE: f32 = 0.12;
-const DEFAULT_SEED: u64 = 42;
 
 #[derive(Clone, Debug)]
 pub struct SynthesisOptions {
@@ -142,10 +141,10 @@ impl BlueTts {
         style: &VoiceStyle,
         opts: SynthesisOptions,
     ) -> Result<Vec<f32>> {
-        self.create_seeded(phonemes, style, opts, DEFAULT_SEED)
+        self.create_seeded(phonemes, style, opts, rand::random())
     }
 
-    /// Run deterministic phoneme-level synthesis with an explicit latent seed.
+    /// Run phoneme-level synthesis with an explicit latent seed.
     pub fn create_seeded(
         &mut self,
         phonemes: &str,
@@ -174,7 +173,7 @@ impl BlueTts {
     ///
     /// `create` remains available for callers that already have IPA. This path
     /// mirrors the Space's text-facing behavior, including slow reference-code
-    /// segments and deterministic chunk seeds.
+    /// segments. Each call uses a fresh random latent seed.
     pub fn synthesize_text(
         &mut self,
         phonemizer: &mut Phonemizer,
@@ -187,6 +186,7 @@ impl BlueTts {
         let segments = split_prepared_by_reference_codes(&prepared);
         let mut output = Vec::new();
         let mut previous_was_reference = false;
+        let base_seed = rand::random::<u64>();
 
         for (index, segment) in segments.iter().enumerate() {
             if segment.text.is_empty() {
@@ -204,7 +204,7 @@ impl BlueTts {
                 &phonemes,
                 style,
                 segment_opts,
-                DEFAULT_SEED.wrapping_add(index as u64),
+                base_seed.wrapping_add(index as u64),
             )?;
             if !output.is_empty() {
                 let gap = if segment.is_reference_code || previous_was_reference {
