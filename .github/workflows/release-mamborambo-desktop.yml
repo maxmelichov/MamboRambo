@@ -93,6 +93,9 @@ jobs:
           SIGN_ENABLED: ${{ runner.os == 'Windows' && inputs.sign-windows && 'true' || 'false' }}
           SIGN_TUNNEL_URL: ${{ secrets.SIGN_TUNNEL_URL }}
           SIGN_TUNNEL_SECRET: ${{ secrets.SIGN_TUNNEL_SECRET }}
+          ORT_STRATEGY: system
+          ORT_PREFER_DYNAMIC_LINK: "1"
+          ORT_LIB_LOCATION: ${{ runner.os == 'macOS' && 'crates/blue-rs/.ort/onnxruntime-osx-arm64-1.23.2' || runner.os == 'Windows' && 'crates/blue-rs/.ort/onnxruntime-win-x64-1.23.2' || 'crates/blue-rs/.ort/onnxruntime-linux-x64-1.23.2' }}
         with:
           tagName: mamborambo-desktop-v__VERSION__
           releaseName: MamboRambo Desktop v__VERSION__
@@ -115,6 +118,9 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          ORT_STRATEGY: system
+          ORT_PREFER_DYNAMIC_LINK: "1"
+          ORT_LIB_LOCATION: crates/blue-rs/.ort/onnxruntime-osx-arm64-1.23.2
         with:
           tagName: mamborambo-desktop-v__VERSION__
           releaseName: MamboRambo Desktop v__VERSION__
