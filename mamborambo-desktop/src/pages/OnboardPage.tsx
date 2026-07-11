@@ -19,8 +19,8 @@ type RuntimeId = ModelBundle["runtime"];
 export function OnboardPage({ bundle, setBundle }: PageProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const [runtime, setRuntime] = useState<RuntimeId>("kokoro");
-  const [bundles, setBundles] = useState<Record<RuntimeId, ModelBundle | null>>({ qwen: null, kokoro: null });
+  const [runtime, setRuntime] = useState<RuntimeId>("blue");
+  const [bundles, setBundles] = useState<Record<RuntimeId, ModelBundle | null>>({ blue: null });
   const [sources, setSources] = useState<ModelSource[]>([]);
   const [progress, setProgress] = useState<DownloadProgress | null>(null);
   const [busy, setBusy] = useState(false);
@@ -40,26 +40,14 @@ export function OnboardPage({ bundle, setBundle }: PageProps) {
     let cancelled = false;
     async function refreshBundles() {
       try {
-        const [qwen, kokoro, modelSources] = await Promise.all([
-          invoke<ModelBundle>("get_model_bundle_for_runtime", { runtime: "qwen" }),
-          invoke<ModelBundle>("get_model_bundle_for_runtime", { runtime: "kokoro" }),
+        const [blue, modelSources] = await Promise.all([
+          invoke<ModelBundle>("get_model_bundle_for_runtime", { runtime: "blue" }),
           invoke<ModelSources>("get_model_sources"),
         ]);
         if (cancelled) return;
-        setBundles({ qwen, kokoro });
+        setBundles({ blue });
         setSources(modelSources.runtimes);
-        const preferredRuntime = (localStorage.getItem("mamborambo.runtime") as RuntimeId | null) ?? bundle?.runtime;
-        if (preferredRuntime === "kokoro" && kokoro.installed) {
-          setRuntime("kokoro");
-        } else if (preferredRuntime === "qwen" && qwen.installed) {
-          setRuntime("qwen");
-        } else if (kokoro.installed) {
-          setRuntime("kokoro");
-        } else if (qwen.installed) {
-          setRuntime("qwen");
-        } else {
-          setRuntime("kokoro");
-        }
+        setRuntime("blue");
       } catch (err) {
         if (!cancelled) setError(String(err));
       }
@@ -98,8 +86,7 @@ export function OnboardPage({ bundle, setBundle }: PageProps) {
       : "Starting";
   const stageLabel = progress?.stage === "extracting" ? "Optimizing models..." : "Downloading voice model...";
   const options = (sources.length ? sources : [
-    { id: "kokoro", name: "Kokoro", version: "kokoro-v1.0", recommended: true, size: "~336 MB", description: "Fast multi-voice speech, lighter setup", files: [], directory: "mamborambo-kokoro-models-kokoro-v1.0" },
-    { id: "qwen", name: "Qwen", version: "mamborambo-models-v0.1.3", recommended: false, size: "~900 MB", description: "Voice clone, multilingual, best on Mac GPU", files: [], directory: "mamborambo-models-q5_0" },
+    { id: "blue", name: "BlueTTS", version: "blue-onnx-v2", size: "~275 MB", description: "Multilingual local speech with Hebrew support", files: [], directory: "blue-onnx-v2" },
   ]) as ModelSource[];
 
   return (
@@ -163,7 +150,7 @@ export function OnboardPage({ bundle, setBundle }: PageProps) {
                           )}
                         >
                           {selected || installed ? <Check className="h-3 w-3" /> : null}
-                          {selected ? "Selected" : installed ? "Installed" : option.recommended ? "Recommended" : "Lightweight"}
+                          {selected ? "Selected" : installed ? "Installed" : "Available"}
                         </span>
                       </div>
                       <p className="max-w-[220px] text-xs font-semibold leading-5 text-secondary opacity-55">{option.description}</p>
@@ -179,12 +166,12 @@ export function OnboardPage({ bundle, setBundle }: PageProps) {
             <div className="flex flex-col gap-5 bg-background/10 p-6 sm:flex-row sm:items-center sm:justify-between">
               <div className="space-y-1">
                 <Eyebrow>Local Infrastructure</Eyebrow>
-                <h3 className="text-base font-semibold tracking-tight">{bundles[runtime]?.version ?? (runtime === "qwen" ? "mamborambo-v0.1.3-standard" : "kokoro-v1.0")}</h3>
+                <h3 className="text-base font-semibold tracking-tight">{bundles[runtime]?.version ?? "blue-onnx-v2"}</h3>
                 <p className="text-xs text-secondary opacity-40">
-                  {bundles[runtime]?.installed ? "Already installed locally" : `Initial setup: ${runtime === "qwen" ? "~900MB" : "~336MB"} storage`}
+                  {bundles[runtime]?.installed ? "Already installed locally" : "Initial setup: ~275 MB storage"}
                 </p>
               </div>
-              <Button onClick={() => selectRuntime(runtime)} disabled={busy || (!!bundle?.installed && bundle.runtime === runtime)} className="h-11 px-6 text-sm shadow-lg shadow-primary/5">
+              <Button onClick={() => selectRuntime(runtime)} disabled={busy} className="h-11 px-6 text-sm shadow-lg shadow-primary/5">
                 {busy ? (
                   <span className="flex items-center gap-2">
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -193,7 +180,7 @@ export function OnboardPage({ bundle, setBundle }: PageProps) {
                 ) : (
                   <span className="flex items-center gap-2">
                     {bundle?.installed && bundle.runtime === runtime ? <Check className="h-4 w-4" /> : bundles[runtime]?.installed ? <Check className="h-4 w-4" /> : <Download className="h-4 w-4" />}
-                    {bundle?.installed && bundle.runtime === runtime ? "Selected" : bundles[runtime]?.installed ? "Use Model" : "Install Models"}
+                    {bundle?.installed && bundle.runtime === runtime ? "Open Studio" : bundles[runtime]?.installed ? "Use Model" : "Install Models"}
                   </span>
                 )}
               </Button>

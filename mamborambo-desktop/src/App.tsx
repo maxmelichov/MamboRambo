@@ -22,8 +22,8 @@ function App() {
     referencePath: "",
     languages: ["auto"],
     language: "auto",
-    kokoroVoice: "af_heart",
-    kokoroVoiceIds: [],
+    blueVoice: "female1",
+    blueVoiceIds: [],
     audioPath: "",
     audioAutoplayPending: false,
     step: "idle",
@@ -37,27 +37,11 @@ function App() {
 
     async function boot() {
       try {
-        const [qwen, kokoro] = await Promise.all([
-          invoke<ModelBundle>("get_model_bundle_for_runtime", { runtime: "qwen" }),
-          invoke<ModelBundle>("get_model_bundle_for_runtime", { runtime: "kokoro" }),
-        ]);
+        const blue = await invoke<ModelBundle>("get_model_bundle_for_runtime", { runtime: "blue" });
         if (cancelled) return;
-
-        const preferredRuntime = localStorage.getItem("mamborambo.runtime");
-        const current =
-          preferredRuntime === "kokoro" && kokoro.installed
-            ? kokoro
-            : preferredRuntime === "qwen" && qwen.installed
-              ? qwen
-              : qwen.installed
-                ? qwen
-                : kokoro.installed
-                  ? kokoro
-                  : qwen;
-        setBundle(current);
-        const isManagingModels = location.pathname === "/onboard" && new URLSearchParams(location.search).get("manage") === "1";
-        if (current.installed && ["/", "/onboard"].includes(location.pathname) && !isManagingModels) navigate("/home", { replace: true });
-        if (!current.installed && location.pathname !== "/onboard") navigate("/onboard", { replace: true });
+        setBundle(blue);
+        if (blue.installed && location.pathname === "/") navigate("/onboard", { replace: true });
+        if (!blue.installed && location.pathname !== "/onboard") navigate("/onboard", { replace: true });
       } catch {
         if (!cancelled && location.pathname !== "/onboard") navigate("/onboard", { replace: true });
       } finally {

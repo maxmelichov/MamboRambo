@@ -4,11 +4,9 @@ use anyhow::Result;
 use serde::Serialize;
 use utoipa::ToSchema;
 
-mod kokoro;
-mod qwen;
+mod blue;
 
-pub use kokoro::{KokoroRuntime, kokoro_language};
-pub use qwen::{QwenRuntime, qwen_language_id};
+pub use blue::BlueRuntime;
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct Language {
@@ -22,54 +20,38 @@ pub trait Runtime: Send {
     fn synthesize_to_file(
         &mut self,
         text: &str,
-        voice_or_reference: Option<&Path>,
+        voice: Option<&str>,
         output_path: &Path,
         language: &str,
     ) -> Result<()>;
 }
 
 pub enum RuntimeParams {
-    Qwen {
-        model_path: PathBuf,
-        codec_path: PathBuf,
-        max_tokens: i32,
-        temperature: f32,
-        top_k: i32,
-    },
-    Kokoro {
-        model_path: PathBuf,
-        voices_path: PathBuf,
-        voice: Option<String>,
-        language: Option<String>,
-        speed: f32,
+    Blue {
+        model_dir: PathBuf,
+        renikud_path: PathBuf,
     },
 }
 
 pub fn language_display_name(language: &str) -> String {
     match language.trim().to_lowercase().as_str() {
-        "en-us" => "American English".into(),
-        "en" | "en-gb" => "British English".into(),
+        "en-us" | "en" | "en-gb" => "English".into(),
+        "he" => "Hebrew".into(),
         "es" => "Spanish".into(),
-        "fr" | "fr-fr" => "French".into(),
-        "ja" => "Japanese".into(),
-        "hi" => "Hindi".into(),
+        "de" | "ge" => "German".into(),
         "it" => "Italian".into(),
-        "pt-br" => "Brazilian Portuguese".into(),
-        "pt" => "Portuguese".into(),
         other => title_case_language(other),
     }
 }
 
 pub fn language_code_alias(language: &str) -> String {
     match language.trim().to_lowercase().as_str() {
-        "american english" | "american" => "en-us".into(),
-        "british english" | "british" | "en-gb" => "en".into(),
+        "auto" => "auto".into(),
+        "english" | "american english" | "american" | "british english" | "british" | "en-us" | "en-gb" => "en".into(),
+        "hebrew" => "he".into(),
         "spanish" => "es".into(),
-        "french" => "fr".into(),
-        "japanese" => "ja".into(),
-        "hindi" => "hi".into(),
+        "german" => "de".into(),
         "italian" => "it".into(),
-        "brazilian portuguese" | "portuguese" => "pt-br".into(),
         other => other.into(),
     }
 }

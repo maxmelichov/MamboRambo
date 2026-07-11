@@ -34,15 +34,8 @@ pub struct VoicesResponse {
 
 #[derive(Debug, Deserialize)]
 pub struct LoadModelRequest {
-    pub runtime: Option<String>,
     pub model_path: String,
-    pub codec_path: String,
-    pub voices_path: Option<String>,
-    pub espeak_data_path: Option<String>,
-    pub voice: Option<String>,
-    pub max_tokens: Option<i32>,
-    pub temperature: Option<f32>,
-    pub top_k: Option<i32>,
+    pub renikud_path: String,
 }
 
 #[derive(Debug, Deserialize)]

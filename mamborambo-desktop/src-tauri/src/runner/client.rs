@@ -15,48 +15,11 @@ pub async fn load_model_request(
     request: LoadModelRequest,
 ) -> Result<serde_json::Value, String> {
     let (client, base_url) = runner_client(&app, &state)?;
-    let runtime = request.runtime.unwrap_or_else(|| {
-        if request
-            .voices_path
-            .as_deref()
-            .is_some_and(|path| !path.is_empty())
-            || request.codec_path.is_empty()
-        {
-            "kokoro".to_string()
-        } else {
-            "qwen".to_string()
-        }
+    let runtime = "blue";
+    let body = serde_json::json!({
+        "model_path": request.model_path,
+        "renikud_path": request.renikud_path,
     });
-    let body = if runtime == "kokoro" {
-        serde_json::json!({
-            "runtime": "kokoro",
-            "kokoro": {
-                "model_path": request.model_path,
-                "voices_path": request.voices_path.unwrap_or_default(),
-                "espeak_data_path": request.espeak_data_path.unwrap_or_default(),
-                "voice": request.voice.unwrap_or_else(|| "af_heart".to_string()),
-                "language": "auto",
-            },
-        })
-    } else {
-        let mut body = serde_json::json!({
-            "runtime": "qwen",
-            "qwen": {
-                "model_path": request.model_path,
-                "codec_path": request.codec_path,
-            },
-        });
-        if let Some(value) = request.max_tokens {
-            body["qwen"]["max_tokens"] = serde_json::json!(value);
-        }
-        if let Some(value) = request.temperature {
-            body["qwen"]["temperature"] = serde_json::json!(value);
-        }
-        if let Some(value) = request.top_k {
-            body["qwen"]["top_k"] = serde_json::json!(value);
-        }
-        body
-    };
 
     let response = client
         .post(format!("{base_url}/v1/models/load"))

@@ -1,14 +1,9 @@
 use serde::Serialize;
 use utoipa::ToSchema;
 
-const QWEN_MODELS_TAG: &str = "mamborambo-models-v0.1.3";
-const QWEN_MODEL_FILE: &str = "qwen3-tts-model.gguf";
-const QWEN_CODEC_FILE: &str = "qwen3-tts-codec.gguf";
-const QWEN_MODEL_BASE_URL: &str = "https://huggingface.co/thewh1teagle/qwen3-tts-gguf/resolve/main";
-const KOKORO_MODELS_TAG: &str = "kokoro-v1.0";
-const KOKORO_MODEL_DIR: &str = "mamborambo-kokoro-models-kokoro-v1.0";
-const KOKORO_BUNDLE_URL: &str = "https://huggingface.co/maxmelichov/MamboRambo-kokoro-models/resolve/main/mamborambo-kokoro-models-kokoro-v1.0.tar.gz";
-const VOICES_CATALOG_URL: &str = "https://raw.githubusercontent.com/maxmelichov/MamboRambo/main/mamborambo-desktop/src/assets/voices.json";
+const BLUE_MODELS_TAG: &str = "blue-onnx-v2";
+const BLUE_MODEL_BASE_URL: &str = "https://huggingface.co/notmax123/blue-onnx-v2/resolve/main";
+const RENIKUD_URL: &str = "https://huggingface.co/thewh1teagle/renikud/resolve/main/model.onnx";
 
 #[derive(Debug, Serialize, ToSchema)]
 pub struct ModelSourceFile {
@@ -21,8 +16,6 @@ pub struct ModelSource {
     id: &'static str,
     name: &'static str,
     version: &'static str,
-    #[serde(skip_serializing_if = "is_false")]
-    recommended: bool,
     size: &'static str,
     description: &'static str,
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -43,38 +36,54 @@ pub fn model_sources() -> ModelSourcesResponse {
     ModelSourcesResponse {
         runtimes: vec![
             ModelSource {
-                id: "qwen",
-                name: "Qwen",
-                version: QWEN_MODELS_TAG,
-                recommended: false,
-                size: "~900 MB",
-                description: "Voice cloning, multilingual synthesis, best quality on supported GPU hardware.",
+                id: "blue",
+                name: "BlueTTS",
+                version: BLUE_MODELS_TAG,
+                size: "~275 MB",
+                description: "Fast local multilingual speech with Hebrew, English, Spanish, German, and Italian.",
                 files: vec![
                     ModelSourceFile {
-                        name: QWEN_MODEL_FILE,
-                        url: format!("{QWEN_MODEL_BASE_URL}/{QWEN_MODEL_FILE}"),
+                        name: "duration_predictor.onnx",
+                        url: format!("{BLUE_MODEL_BASE_URL}/duration_predictor.onnx"),
                     },
                     ModelSourceFile {
-                        name: QWEN_CODEC_FILE,
-                        url: format!("{QWEN_MODEL_BASE_URL}/{QWEN_CODEC_FILE}"),
+                        name: "text_encoder.onnx",
+                        url: format!("{BLUE_MODEL_BASE_URL}/text_encoder.onnx"),
+                    },
+                    ModelSourceFile {
+                        name: "vector_estimator.onnx",
+                        url: format!("{BLUE_MODEL_BASE_URL}/vector_estimator.onnx"),
+                    },
+                    ModelSourceFile {
+                        name: "vocoder.onnx",
+                        url: format!("{BLUE_MODEL_BASE_URL}/vocoder.onnx"),
+                    },
+                    ModelSourceFile {
+                        name: "vocab.json",
+                        url: format!("{BLUE_MODEL_BASE_URL}/vocab.json"),
+                    },
+                    ModelSourceFile {
+                        name: "tts.json",
+                        url: format!("{BLUE_MODEL_BASE_URL}/tts.json"),
+                    },
+                    ModelSourceFile {
+                        name: "voices/female1.json",
+                        url: format!("{BLUE_MODEL_BASE_URL}/voices/female1.json"),
+                    },
+                    ModelSourceFile {
+                        name: "voices/male1.json",
+                        url: format!("{BLUE_MODEL_BASE_URL}/voices/male1.json"),
+                    },
+                    ModelSourceFile {
+                        name: "renikud.onnx",
+                        url: RENIKUD_URL.into(),
                     },
                 ],
                 archive_url: None,
-                directory: "mamborambo-models-q5_0",
-            },
-            ModelSource {
-                id: "kokoro",
-                name: "Kokoro",
-                version: KOKORO_MODELS_TAG,
-                recommended: true,
-                size: "~336 MB",
-                description: "Fast local multi-voice speech with a lighter model bundle.",
-                files: Vec::new(),
-                archive_url: Some(KOKORO_BUNDLE_URL),
-                directory: KOKORO_MODEL_DIR,
+                directory: "blue-onnx-v2",
             },
         ],
-        voices_url: VOICES_CATALOG_URL,
+        voices_url: "",
         default_paths: vec![
             "macOS: ~/Library/Application Support/com.maxmelichov.mamborambo/models",
             "Windows: %LOCALAPPDATA%\\com.maxmelichov.mamborambo\\models",
@@ -83,6 +92,18 @@ pub fn model_sources() -> ModelSourcesResponse {
     }
 }
 
-fn is_false(value: &bool) -> bool {
-    !*value
+#[cfg(test)]
+mod tests {
+    use super::model_sources;
+
+    #[test]
+    fn advertises_one_complete_blue_bundle() {
+        let sources = model_sources();
+        assert_eq!(sources.runtimes.len(), 1);
+        let blue = &sources.runtimes[0];
+        assert_eq!(blue.id, "blue");
+        assert!(blue.files.iter().any(|file| file.name == "voices/female1.json"));
+        assert!(blue.files.iter().any(|file| file.name == "voices/male1.json"));
+        assert!(blue.files.iter().any(|file| file.name == "renikud.onnx"));
+    }
 }

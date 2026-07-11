@@ -46,66 +46,18 @@ pub struct LoadResponse {
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct LoadBody {
     #[serde(default)]
-    pub runtime: String,
-    #[serde(default)]
     pub model_path: String,
     #[serde(default)]
-    pub codec_path: String,
-    #[serde(default)]
-    pub qwen: QwenLoadBody,
-    #[serde(default)]
-    pub kokoro: KokoroLoadBody,
-    #[serde(default)]
-    pub max_tokens: i32,
-    #[serde(default)]
-    pub temperature: f32,
-    #[serde(default)]
-    pub top_k: i32,
+    pub renikud_path: String,
 }
 
 impl Default for LoadBody {
     fn default() -> Self {
         Self {
-            runtime: String::new(),
             model_path: String::new(),
-            codec_path: String::new(),
-            qwen: QwenLoadBody::default(),
-            kokoro: KokoroLoadBody::default(),
-            max_tokens: 0,
-            temperature: 0.0,
-            top_k: 0,
+            renikud_path: String::new(),
         }
     }
-}
-
-#[derive(Debug, Default, Deserialize, ToSchema)]
-pub struct QwenLoadBody {
-    #[serde(default)]
-    pub model_path: String,
-    #[serde(default)]
-    pub codec_path: String,
-    #[serde(default)]
-    pub max_tokens: i32,
-    #[serde(default)]
-    pub temperature: f32,
-    #[serde(default)]
-    pub top_k: i32,
-}
-
-#[derive(Debug, Default, Deserialize, ToSchema)]
-pub struct KokoroLoadBody {
-    #[serde(default)]
-    pub model_path: String,
-    #[serde(default)]
-    pub voices_path: String,
-    #[serde(default)]
-    pub espeak_data_path: String,
-    #[serde(default)]
-    pub voice: String,
-    #[serde(default)]
-    pub language: String,
-    #[serde(default)]
-    pub speed: f32,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]

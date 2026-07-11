@@ -1,5 +1,4 @@
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-dialog";
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useRef } from "react";
 import type { Dispatch, SetStateAction } from "react";
@@ -25,16 +24,15 @@ type HomePageProps = PageProps & {
 
 export function HomePage({ bundle, setBundle, studio, setStudio }: HomePageProps) {
   const navigate = useNavigate();
-  const { text, referencePath, languages, language, kokoroVoice, kokoroVoiceIds, audioPath, audioAutoplayPending, step, status, busy, error } = studio;
+  const { text, languages, language, blueVoice, blueVoiceIds, audioPath, audioAutoplayPending, step, status, busy, error } = studio;
   const loadingLanguagesRef = useRef(false);
 
   const audioSrc = useMemo(() => (audioPath ? convertFileSrc(audioPath) : ""), [audioPath]);
   const updateStudio = (patch: Partial<StudioState>) => setStudio((current) => ({ ...current, ...patch }));
 
   useEffect(() => {
-    const needsKokoroVoices = bundle?.runtime === "kokoro" && kokoroVoiceIds.length === 0;
     if (!bundle?.installed || busy || loadingLanguagesRef.current) return;
-    if (languages.length > 1 && !needsKokoroVoices) return;
+    if (languages.length > 1 && blueVoiceIds.length > 0) return;
     const currentBundle = bundle;
     loadingLanguagesRef.current = true;
 
@@ -45,24 +43,17 @@ export function HomePage({ bundle, setBundle, studio, setStudio }: HomePageProps
           request: {
             runtime: currentBundle.runtime,
             model_path: currentBundle.model_path,
-            codec_path: currentBundle.codec_path || "",
-            voices_path: currentBundle.voices_path || "",
-            espeak_data_path: currentBundle.espeak_data_path || "",
-            voice: currentBundle.runtime === "kokoro" ? kokoroVoice : "af_heart",
-            temperature: 0.9,
-            top_k: 50,
+            renikud_path: currentBundle.codec_path,
           },
         });
         const supportedLanguages = await invoke<string[]>("get_languages");
         const nextStudio: Partial<StudioState> = {};
         if (supportedLanguages.length) nextStudio.languages = supportedLanguages;
-        if (currentBundle.runtime === "kokoro") {
-          try {
-            const voiceIds = await invoke<string[]>("get_voices");
-            if (voiceIds.length) nextStudio.kokoroVoiceIds = voiceIds;
-          } catch {
-            // Voice IDs improve the picker, but language loading should still succeed without them.
-          }
+        try {
+          const voiceIds = await invoke<string[]>("get_voices");
+          if (voiceIds.length) nextStudio.blueVoiceIds = voiceIds;
+        } catch {
+          // Voice IDs improve the picker, but language loading should still succeed without them.
         }
         if (Object.keys(nextStudio).length) updateStudio(nextStudio);
       } catch {
@@ -73,19 +64,10 @@ export function HomePage({ bundle, setBundle, studio, setStudio }: HomePageProps
     }
 
     loadLanguages();
-  }, [bundle, busy, languages.length, kokoroVoiceIds.length]);
-
-  async function chooseReference() {
-    const selected = await open({
-      multiple: false,
-      filters: [{ name: "WAV audio", extensions: ["wav"] }],
-    });
-    if (typeof selected === "string") updateStudio({ referencePath: selected });
-  }
+  }, [bundle, busy, languages.length, blueVoiceIds.length]);
 
   async function createVoice() {
-    const preferredRuntime = bundle?.runtime ?? localStorage.getItem("mamborambo.runtime") ?? "qwen";
-    const current = bundle ?? (await invoke<ModelBundle>("get_model_bundle_for_runtime", { runtime: preferredRuntime }));
+    const current = bundle ?? (await invoke<ModelBundle>("get_model_bundle_for_runtime", { runtime: "blue" }));
     setBundle(current);
     if (!current.installed) {
       navigate("/onboard", { replace: true });
@@ -106,35 +88,27 @@ export function HomePage({ bundle, setBundle, studio, setStudio }: HomePageProps
         request: {
           runtime: current.runtime,
           model_path: current.model_path,
-          codec_path: current.codec_path || "",
-          voices_path: current.voices_path || "",
-          espeak_data_path: current.espeak_data_path || "",
-          voice: current.runtime === "kokoro" ? kokoroVoice : "af_heart",
-          temperature: 0.9,
-          top_k: 50,
+          renikud_path: current.codec_path,
         },
       });
 
       const supportedLanguages = await invoke<string[]>("get_languages");
       const nextStudio: Partial<StudioState> = { languages: supportedLanguages.length ? supportedLanguages : ["auto"] };
-      if (current.runtime === "kokoro") {
-        try {
-          const voiceIds = await invoke<string[]>("get_voices");
-          if (voiceIds.length) nextStudio.kokoroVoiceIds = voiceIds;
-        } catch {
-          // Keep synthesis usable even if voice listing is unavailable.
-        }
+      try {
+        const voiceIds = await invoke<string[]>("get_voices");
+        if (voiceIds.length) nextStudio.blueVoiceIds = voiceIds;
+      } catch {
+        // Keep synthesis usable even if voice listing is unavailable.
       }
       updateStudio(nextStudio);
-      const selectedLanguage = current.runtime === "kokoro" ? "auto" : supportedLanguages.includes(language) ? language : "auto";
+      const selectedLanguage = supportedLanguages.includes(language) ? language : "auto";
       if (selectedLanguage !== language) updateStudio({ language: "auto" });
 
       updateStudio({ step: "creating", status: "Generating audio..." });
       const output = await invoke<string>("synthesize", {
         request: {
           input: text,
-          voice_reference: current.runtime === "kokoro" ? null : referencePath || null,
-          voice: current.runtime === "kokoro" ? kokoroVoice : null,
+          voice: blueVoice,
           language: selectedLanguage,
         },
       });
@@ -179,14 +153,10 @@ export function HomePage({ bundle, setBundle, studio, setStudio }: HomePageProps
               busy={busy}
               language={language}
               languages={languages}
-              referencePath={referencePath}
-              runtime={bundle?.runtime ?? "qwen"}
-              kokoroVoice={kokoroVoice}
-              kokoroVoiceIds={kokoroVoiceIds}
-              chooseReference={chooseReference}
+              blueVoice={blueVoice}
+              blueVoiceIds={blueVoiceIds}
               setLanguage={(nextLanguage) => updateStudio({ language: nextLanguage })}
-              setKokoroVoice={(nextVoice) => updateStudio({ kokoroVoice: nextVoice })}
-              setReferencePath={(nextPath) => updateStudio({ referencePath: nextPath })}
+              setBlueVoice={(nextVoice) => updateStudio({ blueVoice: nextVoice })}
             />
 
             <AnimatePresence>

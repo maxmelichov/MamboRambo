@@ -22,6 +22,10 @@ const KOKORO_MODEL_FILE: &str = "kokoro-v1.0.onnx";
 const KOKORO_VOICES_FILE: &str = "voices-v1.0.bin";
 const KOKORO_ESPEAK_DIR: &str = "espeak-ng-data";
 const KOKORO_BUNDLE_URL: &str = "https://huggingface.co/maxmelichov/MamboRambo-kokoro-models/resolve/main/mamborambo-kokoro-models-kokoro-v1.0.tar.gz";
+const BLUE_MODELS_TAG: &str = "blue-onnx-v2";
+const BLUE_MODEL_DIR: &str = "blue-onnx-v2";
+const BLUE_MODEL_BASE_URL: &str = "https://huggingface.co/notmax123/blue-onnx-v2/resolve/main";
+const RENIKUD_URL: &str = "https://huggingface.co/thewh1teagle/renikud/resolve/main/model.onnx";
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ModelBundle {
@@ -47,7 +51,6 @@ pub struct ModelSource {
     pub id: String,
     pub name: String,
     pub version: String,
-    pub recommended: bool,
     pub size: String,
     pub description: String,
     pub files: Vec<ModelSourceFile>,
@@ -72,7 +75,7 @@ struct ModelDownloadProgress {
 
 #[tauri::command]
 pub async fn get_model_bundle(app: tauri::AppHandle) -> Result<ModelBundle, String> {
-    model_bundle_for_runtime(&app, "qwen")
+    model_bundle_for_runtime(&app, "blue")
 }
 
 #[tauri::command]
@@ -93,7 +96,7 @@ pub async fn download_model_bundle(
     app: tauri::AppHandle,
     runtime: Option<String>,
 ) -> Result<ModelBundle, String> {
-    let runtime = runtime.unwrap_or_else(|| "qwen".to_string());
+    let runtime = runtime.unwrap_or_else(|| "blue".to_string());
     download_model_bundle_inner(app.clone(), runtime.clone())
         .await
         .map_err(|err| {
@@ -110,9 +113,11 @@ async fn download_model_bundle_inner(
     app: tauri::AppHandle,
     runtime: String,
 ) -> Result<ModelBundle, String> {
-    if runtime == "kokoro" {
-        return download_kokoro_bundle(app).await;
+    if runtime != "blue" {
+        return Err(format!("unsupported runtime `{runtime}`; BlueTTS is the only available runtime"));
     }
+    return download_blue_bundle(app).await;
+    /*
     let bundle = qwen_bundle(&app)?;
     if bundle.installed {
         return Ok(bundle);
@@ -175,19 +180,11 @@ async fn download_model_bundle_inner(
     if !bundle.installed {
         return Err("model files downloaded, but expected GGUF files were not found".to_string());
     }
-    Ok(bundle)
+    Ok(bundle)*/
 }
 
 pub fn model_bundle(app: &tauri::AppHandle) -> Result<ModelBundle, String> {
-    let qwen = qwen_bundle(app)?;
-    if qwen.installed {
-        return Ok(qwen);
-    }
-    let kokoro = kokoro_bundle(app)?;
-    if kokoro.installed {
-        return Ok(kokoro);
-    }
-    Ok(qwen)
+    blue_bundle(app)
 }
 
 pub fn model_bundle_for_runtime(
@@ -195,9 +192,37 @@ pub fn model_bundle_for_runtime(
     runtime: &str,
 ) -> Result<ModelBundle, String> {
     match runtime {
-        "kokoro" => kokoro_bundle(app),
-        _ => qwen_bundle(app),
+        "blue" => blue_bundle(app),
+        other => Err(format!("unsupported runtime `{other}`; BlueTTS is the only available runtime")),
     }
+}
+
+fn blue_bundle(app: &tauri::AppHandle) -> Result<ModelBundle, String> {
+    let source = runtime_source("blue").ok_or_else(|| "missing Blue source".to_string())?;
+    let dir = models_root(app)?.join(BLUE_MODEL_DIR);
+    let renikud_path = dir.join("renikud.onnx");
+    let required = [
+        "duration_predictor.onnx",
+        "text_encoder.onnx",
+        "vector_estimator.onnx",
+        "vocoder.onnx",
+        "vocab.json",
+        "tts.json",
+        "voices/female1.json",
+        "voices/male1.json",
+        "renikud.onnx",
+    ];
+    Ok(ModelBundle {
+        installed: required.iter().all(|file| dir.join(file).is_file()),
+        runtime: "blue".to_string(),
+        model_path: path_string(&dir),
+        codec_path: path_string(&renikud_path),
+        voices_path: Some(path_string(&dir.join("voices"))),
+        espeak_data_path: None,
+        model_dir: path_string(&dir),
+        version: source.version,
+        url: BLUE_MODEL_BASE_URL.to_string(),
+    })
 }
 
 fn qwen_bundle(app: &tauri::AppHandle) -> Result<ModelBundle, String> {
@@ -243,38 +268,54 @@ fn model_sources() -> ModelSources {
     ModelSources {
         runtimes: vec![
             ModelSource {
-                id: "qwen".to_string(),
-                name: "Qwen".to_string(),
-                version: MODELS_TAG.to_string(),
-                recommended: false,
-                size: "~900 MB".to_string(),
-                description: "Voice cloning, multilingual synthesis, best quality on supported GPU hardware.".to_string(),
+                id: "blue".to_string(),
+                name: "BlueTTS".to_string(),
+                version: BLUE_MODELS_TAG.to_string(),
+                size: "~275 MB".to_string(),
+                description: "Fast offline multilingual speech with Hebrew, English, Spanish, German, and Italian.".to_string(),
                 files: vec![
                     ModelSourceFile {
-                        name: MODEL_FILE.to_string(),
-                        url: model_file_url(MODEL_FILE),
+                        name: "duration_predictor.onnx".to_string(),
+                        url: format!("{BLUE_MODEL_BASE_URL}/duration_predictor.onnx"),
                     },
                     ModelSourceFile {
-                        name: CODEC_FILE.to_string(),
-                        url: model_file_url(CODEC_FILE),
+                        name: "text_encoder.onnx".to_string(),
+                        url: format!("{BLUE_MODEL_BASE_URL}/text_encoder.onnx"),
+                    },
+                    ModelSourceFile {
+                        name: "vector_estimator.onnx".to_string(),
+                        url: format!("{BLUE_MODEL_BASE_URL}/vector_estimator.onnx"),
+                    },
+                    ModelSourceFile {
+                        name: "vocoder.onnx".to_string(),
+                        url: format!("{BLUE_MODEL_BASE_URL}/vocoder.onnx"),
+                    },
+                    ModelSourceFile {
+                        name: "vocab.json".to_string(),
+                        url: format!("{BLUE_MODEL_BASE_URL}/vocab.json"),
+                    },
+                    ModelSourceFile {
+                        name: "tts.json".to_string(),
+                        url: format!("{BLUE_MODEL_BASE_URL}/tts.json"),
+                    },
+                    ModelSourceFile {
+                        name: "voices/female1.json".to_string(),
+                        url: format!("{BLUE_MODEL_BASE_URL}/voices/female1.json"),
+                    },
+                    ModelSourceFile {
+                        name: "voices/male1.json".to_string(),
+                        url: format!("{BLUE_MODEL_BASE_URL}/voices/male1.json"),
+                    },
+                    ModelSourceFile {
+                        name: "renikud.onnx".to_string(),
+                        url: RENIKUD_URL.to_string(),
                     },
                 ],
                 archive_url: None,
-                directory: MODEL_DIR.to_string(),
-            },
-            ModelSource {
-                id: "kokoro".to_string(),
-                name: "Kokoro".to_string(),
-                version: KOKORO_MODELS_TAG.to_string(),
-                recommended: true,
-                size: "~336 MB".to_string(),
-                description: "Fast local multi-voice speech with a lighter model bundle.".to_string(),
-                files: Vec::new(),
-                archive_url: Some(KOKORO_BUNDLE_URL.to_string()),
-                directory: KOKORO_MODEL_DIR.to_string(),
+                directory: BLUE_MODEL_DIR.to_string(),
             },
         ],
-        voices_url: "https://raw.githubusercontent.com/maxmelichov/MamboRambo/main/mamborambo-desktop/src/assets/voices.json".to_string(),
+        voices_url: String::new(),
         default_paths: vec![
             "macOS: ~/Library/Application Support/com.maxmelichov.mamborambo/models".to_string(),
             "Windows: %LOCALAPPDATA%\\com.maxmelichov.mamborambo\\models".to_string(),
@@ -346,6 +387,53 @@ async fn download_kokoro_bundle(app: tauri::AppHandle) -> Result<ModelBundle, St
     let bundle = kokoro_bundle(&app)?;
     if !bundle.installed {
         return Err("Kokoro bundle extracted, but expected files were not found".to_string());
+    }
+    Ok(bundle)
+}
+
+async fn download_blue_bundle(app: tauri::AppHandle) -> Result<ModelBundle, String> {
+    let bundle = blue_bundle(&app)?;
+    if bundle.installed {
+        return Ok(bundle);
+    }
+    let source = runtime_source("blue").ok_or_else(|| "missing Blue source".to_string())?;
+    let dir = PathBuf::from(&bundle.model_dir);
+    tokio::fs::create_dir_all(&dir)
+        .await
+        .map_err(|err| format!("failed to create {}: {err}", dir.display()))?;
+    let client = reqwest::Client::builder()
+        .no_proxy()
+        .build()
+        .map_err(|err| format!("failed to build HTTP client: {err}"))?;
+    let totals = futures_util::future::join_all(
+        source
+            .files
+            .iter()
+            .map(|file| remote_content_length(&client, &file.url)),
+    )
+    .await;
+    let total = totals.into_iter().collect::<Option<Vec<_>>>().map(|items| items.into_iter().sum());
+    let mut downloaded = 0_u64;
+    for file in source.files {
+        let destination = dir.join(&file.name);
+        if let Some(parent) = destination.parent() {
+            tokio::fs::create_dir_all(parent)
+                .await
+                .map_err(|err| format!("failed to create {}: {err}", parent.display()))?;
+        }
+        download_model_file(
+            &app,
+            &client,
+            &file.url,
+            &destination,
+            &mut downloaded,
+            total,
+        )
+        .await?;
+    }
+    let bundle = blue_bundle(&app)?;
+    if !bundle.installed {
+        return Err("Blue model download completed, but required files are missing".to_string());
     }
     Ok(bundle)
 }

@@ -29,18 +29,9 @@ impl RunnerProcess {
         if let Ok(bundle) = model::model_bundle(app) {
             if bundle.installed {
                 cmd.env("MAMBORAMBO_RUNTIME", &bundle.runtime);
-                cmd.env("MAMBORAMBO_MODEL_PATH", &bundle.model_path);
-                if bundle.runtime == "kokoro" {
-                    cmd.env("MAMBORAMBO_KOKORO_MODEL_PATH", &bundle.model_path);
-                }
+                cmd.env("MAMBORAMBO_BLUE_MODEL_DIR", &bundle.model_path);
                 if !bundle.codec_path.is_empty() {
-                    cmd.env("MAMBORAMBO_CODEC_PATH", &bundle.codec_path);
-                }
-                if let Some(path) = &bundle.voices_path {
-                    cmd.env("MAMBORAMBO_KOKORO_VOICES_PATH", path);
-                }
-                if let Some(path) = &bundle.espeak_data_path {
-                    cmd.env("MAMBORAMBO_ESPEAK_DATA_PATH", path);
+                    cmd.env("MAMBORAMBO_RENIKUD_PATH", &bundle.codec_path);
                 }
             }
         }

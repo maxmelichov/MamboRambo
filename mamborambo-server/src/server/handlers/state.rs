@@ -5,8 +5,6 @@ use axum::{
     response::{IntoResponse, Response},
 };
 
-use crate::runtime::language_display_name;
-
 use super::super::{
     dto::{HealthResponse, LanguagesResponse, ModelsResponse, StatusResponse, VoicesResponse},
     errors::write_error,
@@ -53,11 +51,7 @@ pub async fn languages(State(server): State<SharedServer>) -> Response {
     };
     let items = ctx.languages().to_vec();
     let languages = std::iter::once("auto".to_string())
-        .chain(
-            items
-                .iter()
-                .map(|language| language_display_name(&language.name)),
-        )
+        .chain(items.iter().map(|language| language.name.clone()))
         .collect::<Vec<_>>();
     Json(LanguagesResponse { languages, items }).into_response()
 }
@@ -76,7 +70,7 @@ pub async fn voices(State(server): State<SharedServer>) -> Response {
         return voices_unavailable();
     };
     Json(VoicesResponse {
-        runtime: "kokoro".into(),
+        runtime: "blue".into(),
         voices,
     })
     .into_response()

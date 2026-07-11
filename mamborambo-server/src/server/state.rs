@@ -1,16 +1,14 @@
-use std::{path::PathBuf, sync::Arc};
+use std::sync::Arc;
 
-use anyhow::{Result, bail};
+use anyhow::Result;
 use tokio::sync::Mutex;
 
-use crate::runtime::{KokoroRuntime, QwenRuntime, Runtime, RuntimeParams};
+use crate::runtime::{BlueRuntime, Runtime, RuntimeParams};
 
 pub type SharedServer = Arc<Server>;
 
 pub struct LoadParams {
-    pub runtime: String,
-    pub qwen: RuntimeParams,
-    pub kokoro: Option<RuntimeParams>,
+    pub blue: RuntimeParams,
 }
 
 pub struct Server {
@@ -44,64 +42,25 @@ impl Server {
 
     pub async fn load_model(&self, params: LoadParams) -> Result<()> {
         let mut inner = self.inner.lock().await;
-        let runtime = if params.runtime.is_empty() {
-            "qwen".to_string()
-        } else {
-            params.runtime
+        let (ctx, model_path, renikud_path): (Box<dyn Runtime>, _, _) = match params.blue {
+            RuntimeParams::Blue {
+                model_dir,
+                renikud_path,
+            } => (
+                Box::new(BlueRuntime::load(model_dir.clone(), renikud_path.clone())?),
+                model_dir,
+                renikud_path,
+            ),
         };
-        let (ctx, model_path, codec_path): (Box<dyn Runtime>, PathBuf, PathBuf) =
-            match runtime.as_str() {
-                "qwen" => match params.qwen {
-                    RuntimeParams::Qwen {
-                        model_path,
-                        codec_path,
-                        max_tokens,
-                        temperature,
-                        top_k,
-                    } => (
-                        Box::new(QwenRuntime::load(
-                            model_path.clone(),
-                            codec_path.clone(),
-                            max_tokens,
-                            temperature,
-                            top_k,
-                        )?),
-                        model_path,
-                        codec_path,
-                    ),
-                    _ => bail!("invalid qwen runtime params"),
-                },
-                "kokoro" => match params.kokoro {
-                    Some(RuntimeParams::Kokoro {
-                        model_path,
-                        voices_path,
-                        voice,
-                        language,
-                        speed,
-                    }) => (
-                        Box::new(KokoroRuntime::load(
-                            model_path.clone(),
-                            voices_path.clone(),
-                            voice,
-                            language,
-                            speed,
-                        )?),
-                        model_path,
-                        voices_path,
-                    ),
-                    _ => bail!("invalid kokoro runtime params"),
-                },
-                other => bail!("unsupported runtime {other:?}"),
-            };
         inner.ctx = Some(ctx);
-        inner.runtime = runtime;
+        inner.runtime = "blue".into();
         inner.model_name = model_path
             .file_name()
             .and_then(|name| name.to_str())
             .unwrap_or_default()
             .into();
         inner.model_path = model_path.display().to_string();
-        inner.codec_path = codec_path.display().to_string();
+        inner.codec_path = renikud_path.display().to_string();
         Ok(())
     }
 

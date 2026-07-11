@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import platform
 import shutil
 import subprocess
@@ -50,7 +51,10 @@ def main() -> int:
         *profile_args,
     ]
     print("+", " ".join(cmd))
-    subprocess.run(cmd, cwd=ROOT, check=True)
+    build_env = os.environ.copy()
+    if platform.system() == "Darwin":
+        build_env["RUSTFLAGS"] = f"{build_env.get('RUSTFLAGS', '')} -C link-arg=-Wl,-headerpad_max_install_names".strip()
+    subprocess.run(cmd, cwd=ROOT, env=build_env, check=True)
 
     source = ROOT / "target" / target / args.profile / ("mamborambo-server.exe" if is_windows else "mamborambo-server")
     if not source.exists():
@@ -59,6 +63,24 @@ def main() -> int:
     shutil.copy2(source, dest)
     if not is_windows:
         dest.chmod(dest.stat().st_mode | 0o111)
+    if platform.system() == "Darwin":
+        ort_root = Path(os.environ.get("ORT_LIB_LOCATION", ROOT / "crates" / "blue-rs" / ".ort" / "onnxruntime-osx-arm64-1.23.2"))
+        onnx_runtime = ort_root / "lib" / "libonnxruntime.1.23.2.dylib"
+        if not onnx_runtime.exists():
+            onnx_runtime = next(
+                (path for path in (ROOT / "target").glob("**/libonnxruntime.1.23.2.dylib")),
+                onnx_runtime,
+            )
+        if not onnx_runtime.exists():
+            raise FileNotFoundError(
+                f"{onnx_runtime} (set ORT_LIB_LOCATION to the ONNX Runtime distribution)"
+            )
+        shutil.copy2(onnx_runtime, dest_dir / onnx_runtime.name)
+        for rpath in ("@loader_path", "@loader_path/../Resources"):
+            subprocess.run(
+                ["install_name_tool", "-add_rpath", rpath, str(dest)],
+                check=True,
+            )
     print(f"Installed MamboRambo server sidecar at {dest}")
     return 0
 

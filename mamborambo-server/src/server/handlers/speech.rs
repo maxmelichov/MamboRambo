@@ -10,7 +10,7 @@ use super::super::{
     dto::SpeechBody,
     errors::write_error,
     state::SharedServer,
-    util::{first_non_empty, path_option},
+    util::first_non_empty,
 };
 
 #[utoipa::path(
@@ -34,6 +34,13 @@ pub async fn speech(State(server): State<SharedServer>, Json(body): Json<SpeechB
             "only wav response_format is supported",
         );
     }
+    if !body.voice_reference.is_empty() {
+        return write_error(
+            StatusCode::BAD_REQUEST,
+            "invalid_request",
+            "BlueTTS supports only the saved female1 and male1 voices; voice cloning is unavailable",
+        );
+    }
 
     let Ok(tmp) = tempfile::Builder::new()
         .prefix("mamborambo-speech-")
@@ -48,7 +55,7 @@ pub async fn speech(State(server): State<SharedServer>, Json(body): Json<SpeechB
     };
 
     let out_path = tmp.path().to_path_buf();
-    let voice = first_non_empty([body.voice_reference, body.voice]);
+    let voice = first_non_empty([body.voice]);
     {
         let mut inner = server.inner.lock().await;
         let Some(ctx) = inner.ctx.as_mut() else {
@@ -59,7 +66,7 @@ pub async fn speech(State(server): State<SharedServer>, Json(body): Json<SpeechB
             );
         };
         if let Err(err) =
-            ctx.synthesize_to_file(&body.input, path_option(&voice), &out_path, &body.language)
+            ctx.synthesize_to_file(&body.input, (!voice.is_empty()).then_some(voice.as_str()), &out_path, &body.language)
         {
             return write_error(
                 StatusCode::INTERNAL_SERVER_ERROR,
