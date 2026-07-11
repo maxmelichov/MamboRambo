@@ -159,6 +159,15 @@ def main() -> int:
     ]
     print("+", " ".join(cmd))
     build_env = os.environ.copy()
+    ort_root = download_ort(target)
+    build_env["ORT_STRATEGY"] = "system"
+    build_env["ORT_LIB_LOCATION"] = str(ort_root)
+    build_env["ORT_PREFER_DYNAMIC_LINK"] = "1"
+    lib_dir = ort_root / "lib"
+    if lib_dir.exists():
+        path_key = "PATH" if is_windows else "LD_LIBRARY_PATH" if is_linux else "DYLD_LIBRARY_PATH"
+        current = build_env.get(path_key, "")
+        build_env[path_key] = f"{lib_dir}{os.pathsep}{current}" if current else str(lib_dir)
     if is_macos:
         build_env["RUSTFLAGS"] = f"{build_env.get('RUSTFLAGS', '')} -C link-arg=-Wl,-headerpad_max_install_names".strip()
     subprocess.run(cmd, cwd=ROOT, env=build_env, check=True)
