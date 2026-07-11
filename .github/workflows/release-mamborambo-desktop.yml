@@ -72,6 +72,7 @@ jobs:
             libayatana-appindicator3-dev \
             librsvg2-dev \
             patchelf \
+            cmake \
             clang \
             libclang-dev \
             libasound2-dev
