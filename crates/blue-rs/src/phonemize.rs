@@ -7,7 +7,7 @@ use regex::Regex;
 use renikud_rs::G2P;
 
 use crate::handling::{
-    NikudPhonemizer, PlainHebrewPhonemizer, contains_nikud, phonemize_nikud_word, strip_nikud,
+    NikudPhonemizer, contains_nikud, prepare_text_for_synthesis,
 };
 
 /// Languages supported by the BlueTTS model.
@@ -67,11 +67,11 @@ impl TryFrom<&str> for Language {
 pub struct Phonemizer {
     hebrew: Option<G2P>,
     language: Language,
-    latin_re: Regex,
+    mixed_re: Regex,
+    inline_tag_re: Regex,
     /// Optional Phonikud (or compatible) engine for niqqud → IPA.
     ///
-    /// When set, vocalized words keep niqqud for Phonikud, are stripped for
-    /// Renikud, then Phonikud stress is transferred onto Renikud IPA.
+    /// When set, vocalized Hebrew is passed to this engine with niqqud intact.
     nikud: Option<Box<dyn NikudPhonemizer + Send>>,
 }
 
@@ -102,7 +102,10 @@ impl Phonemizer {
         Ok(Self {
             hebrew,
             language,
-            latin_re: Regex::new(r"[A-Za-z]+(?:['-][A-Za-z]+)*")?,
+            mixed_re: Regex::new(
+                r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}|\d+[A-Za-z]+|[A-Za-z]+(?:[.'’\-][A-Za-z0-9]+)*",
+            )?,
+            inline_tag_re: Regex::new(r"(?is)<(en|en-us|he|es|de|ge|it)>(.*?)</(?:en|en-us|he|es|de|ge|it)>")?,
             nikud: None,
         })
     }
@@ -117,15 +120,17 @@ impl Phonemizer {
         Ok(Self {
             hebrew: Some(G2P::from_session(session)?),
             language,
-            latin_re: Regex::new(r"[A-Za-z]+(?:['-][A-Za-z]+)*")?,
+            mixed_re: Regex::new(
+                r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}|\d+[A-Za-z]+|[A-Za-z]+(?:[.'’\-][A-Za-z0-9]+)*",
+            )?,
+            inline_tag_re: Regex::new(r"(?is)<(en|en-us|he|es|de|ge|it)>(.*?)</(?:en|en-us|he|es|de|ge|it)>")?,
             nikud: None,
         })
     }
 
     /// Attach a Phonikud-compatible engine for niqqud-bearing Hebrew words.
     ///
-    /// Niqqud is **not** stripped before this engine. Renikud still receives
-    /// the stripped form, and Phonikud stress is placed onto Renikud IPA.
+    /// Niqqud is **not** stripped before this engine.
     pub fn with_nikud_phonemizer(
         mut self,
         nikud: impl NikudPhonemizer + Send + 'static,
@@ -144,45 +149,129 @@ impl Phonemizer {
         self.phonemize_lang(text, self.language)
     }
 
+    /// Prepare raw text and return BlueTTS-ready, language-tagged IPA.
+    pub fn g2p(&mut self, text: &str, language: Language) -> Result<String> {
+        let prepared = prepare_text_for_synthesis(text, language.code());
+        self.phonemize_prepared(&prepared, language)
+    }
+
     /// Phonemize text using an explicit supported model language.
     ///
     /// Supported model language codes are `he`, `en`, `es`, `de`, and `it`.
     pub fn phonemize_lang(&mut self, text: &str, language: Language) -> Result<String> {
-        if language != Language::Hebrew && !contains_hebrew(text) {
-            return self.phonemize_espeak(text, language);
+        self.g2p(text, language)
+    }
+
+    fn phonemize_prepared(&mut self, text: &str, language: Language) -> Result<String> {
+        if !self.inline_tag_re.is_match(text) {
+            let segments = self.phonemize_segments(text, language)?;
+            return Ok(self.wrap_segments(segments));
         }
 
-        let mut result = String::new();
+        let mut segments = Vec::new();
         let mut last = 0;
+        let tags: Vec<(usize, usize, Language, String)> = self
+            .inline_tag_re
+            .captures_iter(text)
+            .map(|caps| {
+                let all = caps.get(0).expect("full tag match");
+                let language = Language::try_from(caps.get(1).expect("tag language").as_str())?;
+                Ok((
+                    all.start(),
+                    all.end(),
+                    language,
+                    caps.get(2).expect("tag content").as_str().to_owned(),
+                ))
+            })
+            .collect::<Result<_>>()?;
+        for (start, end, tagged_language, content) in tags {
+            if start > last {
+                segments.extend(self.phonemize_segments(&text[last..start], language)?);
+            }
+            segments.extend(self.phonemize_segments(&content, tagged_language)?);
+            last = end;
+        }
+        if last < text.len() {
+            segments.extend(self.phonemize_segments(&text[last..], language)?);
+        }
+        Ok(self.wrap_segments(segments))
+    }
 
-        let latin_spans: Vec<(usize, usize)> = self
-            .latin_re
+    fn phonemize_segments(
+        &mut self,
+        text: &str,
+        language: Language,
+    ) -> Result<Vec<(Language, String)>> {
+        if text.trim().is_empty() {
+            return Ok(Vec::new());
+        }
+        if language != Language::Hebrew && !contains_hebrew(text) {
+            let ipa = self.phonemize_espeak(text, language)?;
+            return Ok((!ipa.is_empty()).then_some((language, ipa)).into_iter().collect());
+        }
+        if language != Language::Hebrew || !contains_latin_or_digit(text) {
+            let ipa = self.phonemize_non_latin(text)?;
+            return Ok((!ipa.is_empty()).then_some((language, ipa)).into_iter().collect());
+        }
+
+        let spans: Vec<(usize, usize)> = self
+            .mixed_re
             .find_iter(text)
             .map(|m| (m.start(), m.end()))
             .collect();
-
-        for (start, end) in latin_spans {
-            let non_latin = &text[last..start];
-            if !non_latin.is_empty() {
-                result.push_str(&self.phonemize_non_latin(non_latin)?);
+        let mut result = Vec::new();
+        let mut last = 0;
+        for (start, end) in spans {
+            if start > last {
+                self.push_segment(&mut result, &text[last..start], Language::Hebrew)?;
             }
-
-            let latin_language = if language == Language::Hebrew {
-                Language::English
+            let latin = &text[start..end];
+            let latin = if is_email(latin) {
+                email_to_spoken_english(latin)
             } else {
-                language
+                latin.to_owned()
             };
-            let ipa = self.phonemize_espeak(&text[start..end], latin_language)?;
-            result.push_str(&ipa);
+            self.push_segment(&mut result, &latin, Language::English)?;
             last = end;
         }
-
-        let rest = &text[last..];
-        if !rest.is_empty() {
-            result.push_str(&self.phonemize_non_latin(rest)?);
+        if last < text.len() {
+            self.push_segment(&mut result, &text[last..], Language::Hebrew)?;
         }
+        Ok(result)
+    }
 
-        Ok(normalize_spaces(&result))
+    fn push_segment(
+        &mut self,
+        output: &mut Vec<(Language, String)>,
+        text: &str,
+        language: Language,
+    ) -> Result<()> {
+        let ipa = if language == Language::Hebrew {
+            self.phonemize_non_latin(text)?
+        } else {
+            self.phonemize_espeak(text, language)?
+        };
+        if !ipa.trim().is_empty() {
+            output.push((language, ipa));
+        }
+        Ok(())
+    }
+
+    fn wrap_segments(&self, segments: Vec<(Language, String)>) -> String {
+        let mut result = String::new();
+        let mut previous = None;
+        for (language, ipa) in segments {
+            if let Some(previous) = previous {
+                if previous != language {
+                    result.push_str(" , ");
+                } else if !result.is_empty() {
+                    result.push(' ');
+                }
+            }
+            result.push_str(&format!("<{}>{}</{}>", language.code(), ipa.trim(), language.code()));
+            previous = Some(language);
+        }
+        normalize_spaces(&result)
     }
 
     fn phonemize_espeak(&self, text: &str, language: Language) -> Result<String> {
@@ -199,69 +288,14 @@ impl Phonemizer {
             return Ok(text.to_string());
         }
 
-        if contains_nikud(text) && self.nikud.is_some() {
-            return self.phonemize_hebrew_with_nikud(text);
+        if contains_nikud(text) {
+            let nikud = self.nikud.as_deref_mut().ok_or_else(|| {
+                anyhow!("vocalized Hebrew requires a NikudPhonemizer; attach one with with_nikud_phonemizer")
+            })?;
+            return nikud.phonemize_nikud(text);
         }
 
-        // Renikud expects plain Hebrew — strip niqqud when Phonikud is absent.
-        let plain = if contains_nikud(text) {
-            strip_nikud(text)
-        } else {
-            text.to_owned()
-        };
-        self.phonemize_renikud(&plain)
-    }
-
-    /// Word-level hybrid path: Phonikud(keep niqqud) + Renikud(strip) + stress merge.
-    fn phonemize_hebrew_with_nikud(&mut self, text: &str) -> Result<String> {
-        let mut output = String::with_capacity(text.len());
-        let mut word = String::new();
-
-        for character in text.chars() {
-            if is_hebrew_word_character(character) {
-                word.push(character);
-                continue;
-            }
-            self.flush_hebrew_word(&mut word, &mut output)?;
-            output.push(character);
-        }
-        self.flush_hebrew_word(&mut word, &mut output)?;
-        Ok(output)
-    }
-
-    fn flush_hebrew_word(&mut self, word: &mut String, output: &mut String) -> Result<()> {
-        if word.is_empty() {
-            return Ok(());
-        }
-
-        if contains_nikud(word) {
-            // Temporarily take the nikud engine so Renikud can be borrowed too.
-            let mut nikud = self
-                .nikud
-                .take()
-                .ok_or_else(|| anyhow!("niqqud phonemizer missing"))?;
-            let has_renikud = self.hebrew.is_some();
-            let span = if has_renikud {
-                let mut renikud_adapter = RenikudAdapter {
-                    g2p: self.hebrew.as_mut(),
-                };
-                phonemize_nikud_word(
-                    word,
-                    nikud.as_mut(),
-                    Some(&mut renikud_adapter as &mut dyn PlainHebrewPhonemizer),
-                )
-            } else {
-                phonemize_nikud_word(word, nikud.as_mut(), None)
-            };
-            self.nikud = Some(nikud);
-            output.push_str(&span?.ipa);
-        } else if word.chars().any(|c| ('\u{0590}'..='\u{05ff}').contains(&c)) {
-            output.push_str(&self.phonemize_renikud(word)?);
-        } else {
-            output.push_str(word);
-        }
-        word.clear();
-        Ok(())
+        self.phonemize_renikud(text)
     }
 
     fn phonemize_renikud(&mut self, text: &str) -> Result<String> {
@@ -269,20 +303,6 @@ impl Phonemizer {
             bail!("Hebrew phonemization needs a Renikud model path");
         };
         g2p.phonemize(text)
-    }
-}
-
-/// Thin adapter so Renikud `G2P` satisfies [`PlainHebrewPhonemizer`].
-struct RenikudAdapter<'a> {
-    g2p: Option<&'a mut G2P>,
-}
-
-impl PlainHebrewPhonemizer for RenikudAdapter<'_> {
-    fn phonemize_plain(&mut self, unvocalized: &str) -> Result<String> {
-        let Some(g2p) = self.g2p.as_mut() else {
-            bail!("Hebrew phonemization needs a Renikud model path");
-        };
-        g2p.phonemize(unvocalized)
     }
 }
 
@@ -295,12 +315,37 @@ fn contains_hebrew(text: &str) -> bool {
     text.chars().any(|c| ('\u{0590}'..='\u{05ff}').contains(&c))
 }
 
-fn is_hebrew_word_character(character: char) -> bool {
-    ('\u{05d0}'..='\u{05ea}').contains(&character)
-        || ('\u{0591}'..='\u{05c7}').contains(&character)
-        || matches!(character, '׳' | '״' | '|')
-}
-
 fn normalize_spaces(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+fn contains_latin_or_digit(text: &str) -> bool {
+    text.chars().any(|c| c.is_ascii_alphanumeric())
+}
+
+fn is_email(text: &str) -> bool {
+    Regex::new(r"(?i)^[A-Z0-9._%+\-]+@[A-Z0-9.-]+\.[A-Z]{2,}$")
+        .expect("valid email regex")
+        .is_match(text)
+}
+
+fn email_to_spoken_english(email: &str) -> String {
+    let (local, domain) = email.split_once('@').unwrap_or((email, ""));
+    let local = local
+        .replace(['.', '_'], " dot ")
+        .replace('-', " dash ")
+        .replace('+', " plus ");
+    let domain = domain
+        .split('.')
+        .filter(|part| !part.is_empty())
+        .map(|part| {
+            if part.len() <= 2 && part.chars().all(|c| c.is_ascii_alphabetic()) {
+                part.chars().map(|c| c.to_string()).collect::<Vec<_>>().join(" ")
+            } else {
+                part.to_owned()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" dot ");
+    format!("{local} at {domain}")
 }

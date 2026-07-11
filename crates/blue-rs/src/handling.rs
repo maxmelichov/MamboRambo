@@ -9,6 +9,16 @@ use regex::{Captures, Regex};
 
 /// Primary stress mark used by Phonikud (`U+02C8`).
 pub const STRESS_MARK: char = '\u{02c8}';
+/// Internal boundaries for segments that need slower, clearer synthesis.
+pub const REF_CODE_MARK_OPEN: char = '【';
+pub const REF_CODE_MARK_CLOSE: char = '】';
+
+/// Text that is ready for G2P, split by its requested synthesis pacing.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PreparedSegment {
+    pub text: String,
+    pub is_reference_code: bool,
+}
 
 /// Destination representation expected by the selected synthesis model.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -93,6 +103,71 @@ pub fn strip_nikud(text: &str) -> String {
 /// True when `text` contains any Hebrew niqqud / cantillation mark.
 pub fn contains_nikud(text: &str) -> bool {
     text.chars().any(is_nikud)
+}
+
+/// Remove internal slow-segment markers before displaying prepared text.
+pub fn strip_reference_code_markers(text: &str) -> String {
+    text.replace(REF_CODE_MARK_OPEN, "").replace(REF_CODE_MARK_CLOSE, "")
+}
+
+/// Split prepared text into ordinary and slow reference-code segments.
+///
+/// Punctuation-only fragments are retained with the preceding segment, matching
+/// the Python pipeline's protection against a stray final phoneme.
+pub fn split_prepared_by_reference_codes(text: &str) -> Vec<PreparedSegment> {
+    let mut segments = Vec::new();
+    let mut ordinary = String::new();
+    let mut slow = String::new();
+    let mut in_slow = false;
+
+    let push = |text: &mut String, is_reference_code, out: &mut Vec<PreparedSegment>| {
+        let value = text.trim();
+        if !value.is_empty() {
+            out.push(PreparedSegment {
+                text: value.to_owned(),
+                is_reference_code,
+            });
+        }
+        text.clear();
+    };
+
+    for character in text.chars() {
+        match character {
+            REF_CODE_MARK_OPEN if !in_slow => {
+                push(&mut ordinary, false, &mut segments);
+                in_slow = true;
+            }
+            REF_CODE_MARK_CLOSE if in_slow => {
+                push(&mut slow, true, &mut segments);
+                in_slow = false;
+            }
+            _ if in_slow => slow.push(character),
+            _ => ordinary.push(character),
+        }
+    }
+    if in_slow {
+        ordinary.push(REF_CODE_MARK_OPEN);
+        ordinary.push_str(&slow);
+    }
+    push(&mut ordinary, false, &mut segments);
+
+    let mut merged: Vec<PreparedSegment> = Vec::new();
+    for segment in segments {
+        if segment.text.chars().all(|c| matches!(c, '.' | '!' | '?' | ',' | ';' | ':' | '…'))
+            && !merged.is_empty()
+        {
+            merged.last_mut().expect("not empty").text.push_str(&segment.text);
+        } else {
+            merged.push(segment);
+        }
+    }
+    if merged.is_empty() {
+        merged.push(PreparedSegment {
+            text: strip_reference_code_markers(text).trim().to_owned(),
+            is_reference_code: false,
+        });
+    }
+    merged
 }
 
 /// Index of the stressed vowel in IPA (`0` = first vowel), if any.
@@ -245,6 +320,276 @@ pub fn normalize_for_speech(text: &str) -> String {
     normalize_punctuation(&text)
 }
 
+/// Apply BlueTTS's text normalization before G2P.
+///
+/// This intentionally keeps `<en>…</en>` spans and `【…】` pacing spans in the
+/// output. The G2P and synthesis layers consume those markers later.
+pub fn prepare_text_for_synthesis(text: &str, lang: &str) -> String {
+    let lang = canonical_lang(lang);
+    let mut text = strip_helper_markup(text);
+    text = normalize_common_text(&text);
+    if lang == "he" {
+        text = normalize_hebrew_punctuation(&text);
+        text = expand_geresh_loanwords(&text);
+        text = expand_dialogue_quotes(&text);
+        text = expand_lamed_before_latin(&text);
+    }
+    text = expand_alphanumeric_codes(&text, &lang);
+    text = expand_list_markers(&text, &lang);
+    text = expand_plus_sign(&text, &lang);
+    if lang == "he" {
+        text = expand_phone_numbers(&text);
+        text = expand_times(&text);
+        text = expand_dates(&text);
+    }
+    text = expand_percent_symbols(&text, &lang);
+    text = expand_ratios(&text, &lang);
+    text = expand_numbers(&text, &lang);
+    strip_silent_separator_tokens(&text)
+}
+
+fn canonical_lang(lang: &str) -> String {
+    match lang.to_ascii_lowercase().as_str() {
+        "en-us" => "en".to_owned(),
+        "ge" => "de".to_owned(),
+        value => value.to_owned(),
+    }
+}
+
+fn strip_helper_markup(text: &str) -> String {
+    let block = Regex::new(r"(?is)<lang_list\b[^>]*>.*?</lang_list>").expect("valid regex");
+    let tag = Regex::new(r"(?i)</?lang_list\b[^>]*>").expect("valid regex");
+    tag.replace_all(&block.replace_all(text, " "), " ").into_owned()
+}
+
+fn normalize_common_text(text: &str) -> String {
+    let heading = Regex::new(r"(?m)(^|\s)#{1,6}\s*").expect("valid regex");
+    let mut text = heading.replace_all(text, "$1").into_owned();
+    text = text
+        .replace(['(', '[', '{'], ", ")
+        .replace([')', ']', '}'], ", ");
+    text = normalize_punctuation(&text);
+    Regex::new(r"(?i)\banymore\b")
+        .expect("valid regex")
+        .replace_all(&text, |caps: &Captures| {
+            if caps[0].starts_with('A') {
+                "Any more"
+            } else {
+                "any more"
+            }
+        })
+        .into_owned()
+}
+
+fn mark_slow_segment(text: impl AsRef<str>) -> String {
+    format!("{REF_CODE_MARK_OPEN}{}{REF_CODE_MARK_CLOSE}", text.as_ref())
+}
+
+fn expand_geresh_loanwords(text: &str) -> String {
+    text.replace("ג'מיני", "<en>Gemini</en>")
+        .replace("ג׳מיני", "<en>Gemini</en>")
+        .replace("מנג'ר", "<en>Manager</en>")
+        .replace("מנג׳ר", "<en>Manager</en>")
+}
+
+fn expand_dialogue_quotes(text: &str) -> String {
+    let terminal = Regex::new(r#"(?u)(\S)\s*["“„”]\s*$"#).expect("valid regex");
+    let opening = Regex::new(r#"(?u)\s*:?\s*["“„”]\s*"#).expect("valid regex");
+    let closing = Regex::new(r#"(?u)(\S)\s*["“„”]"#).expect("valid regex");
+    let text = terminal.replace_all(text, "$1.").into_owned();
+    let text = opening.replace_all(&text, ", ").into_owned();
+    closing.replace_all(&text, "$1, ").into_owned()
+}
+
+fn expand_lamed_before_latin(text: &str) -> String {
+    Regex::new(r"(?u)(^|[^\u{0590}-\u{05ff}])ל\s*[-–—‑]?\s*([A-Za-z0-9])")
+        .expect("valid regex")
+        .replace_all(text, "$1אל $2")
+        .into_owned()
+}
+
+fn expand_alphanumeric_codes(text: &str, lang: &str) -> String {
+    let token = Regex::new(r"(?i)[a-z0-9]+(?:[-_/][a-z0-9]+)*").expect("valid regex");
+    token
+        .replace_all(text, |caps: &Captures| {
+            let value = &caps[0];
+            let letters = value.chars().filter(|c| c.is_ascii_alphabetic()).count();
+            let digits = value.chars().filter(|c| c.is_ascii_digit()).count();
+            if letters == 0 || digits == 0 || (letters < 2 && digits < 2) {
+                return value.to_owned();
+            }
+            let letter_block = value
+                .chars()
+                .filter(|c| c.is_ascii_alphabetic())
+                .map(|c| c.to_ascii_uppercase().to_string())
+                .collect::<Vec<_>>()
+                .join(" ");
+            let digits = value
+                .split(['-', '_', '/'])
+                .filter_map(|part| {
+                    let digits: String = part.chars().filter(|c| c.is_ascii_digit()).collect();
+                    (!digits.is_empty()).then(|| spell_digits_lang(&digits, lang))
+                })
+                .collect::<Vec<_>>()
+                .join(" , ");
+            let letters = if letter_block.is_empty() {
+                String::new()
+            } else {
+                format!("<en>{letter_block}</en>")
+            };
+            mark_slow_segment(format!("{} {} .", letters, digits).trim())
+        })
+        .into_owned()
+}
+
+fn expand_list_markers(text: &str, lang: &str) -> String {
+    let list = Regex::new(r"(?m)(^|[^\d/])(\d{1,2})\.\s+")
+        .expect("valid regex");
+    list.replace_all(text, |caps: &Captures| {
+        let n: u8 = caps[2].parse().unwrap_or_default();
+        let word = if lang == "he" {
+            list_number(n)
+        } else {
+            number_to_words(u16::from(n), lang)
+        };
+        format!("{}{}. ", &caps[1], word)
+    })
+    .into_owned()
+}
+
+fn expand_plus_sign(text: &str, lang: &str) -> String {
+    let word = match lang {
+        "he" => "פלוס",
+        "es" => "más",
+        "it" => "più",
+        _ => "plus",
+    };
+    Regex::new(r"\s+\+\s+")
+        .expect("valid regex")
+        .replace_all(text, format!(" {word} "))
+        .into_owned()
+}
+
+fn expand_phone_numbers(text: &str) -> String {
+    let phone = Regex::new(r"(?x)(?:\*\d{2,}|0\d{0,2}-\d{6,8})").expect("valid regex");
+    phone
+        .replace_all(text, |caps: &Captures| {
+            let raw = &caps[0];
+            let prefix = if raw.starts_with('*') { "כוכבית " } else { "" };
+            mark_slow_segment(format!("{prefix}{}", spell_digits(raw)))
+        })
+        .into_owned()
+}
+
+fn expand_times(text: &str) -> String {
+    let time = Regex::new(r"([01]?\d|2[0-3]):([0-5]\d)").expect("valid regex");
+    time.replace_all(text, |caps: &Captures| {
+        let hour = caps[1].parse::<u16>().unwrap_or_default();
+        let minute = caps[2].parse::<u16>().unwrap_or_default();
+        let spoken = if minute == 0 {
+            number_to_words(hour, "he")
+        } else {
+            format!("{} ו{}", number_to_words(hour, "he"), number_to_words(minute, "he"))
+        };
+        mark_slow_segment(spoken)
+    })
+    .into_owned()
+}
+
+fn expand_dates(text: &str) -> String {
+    let date = Regex::new(r"([0-3]?\d)[/.]([01]?\d)[/.](\d{2}|\d{4})").expect("valid regex");
+    date.replace_all(text, |caps: &Captures| {
+        let day = caps[1].parse::<u16>().unwrap_or_default();
+        let month = caps[2].parse::<usize>().unwrap_or_default();
+        let mut year = caps[3].parse::<u16>().unwrap_or_default();
+        if caps[3].len() == 2 {
+            year += if year < 70 { 2000 } else { 1900 };
+        }
+        let ordinals = [
+            "", "לראשון", "לשני", "לשלישי", "לרביעי", "לחמישי", "לשישי", "לשביעי",
+            "לשמיני", "לתשיעי", "לעשירי", "לאחד עשר", "לשנים עשר",
+        ];
+        if !(1..=31).contains(&day) || month == 0 || month >= ordinals.len() {
+            caps[0].to_owned()
+        } else {
+            mark_slow_segment(format!(
+                "{} {} {}",
+                number_to_words(day, "he"),
+                ordinals[month],
+                number_to_words(year, "he")
+            ))
+        }
+    })
+    .into_owned()
+}
+
+fn expand_percent_symbols(text: &str, lang: &str) -> String {
+    let word = match lang {
+        "he" => "אחוז",
+        "es" => "por ciento",
+        "de" => "Prozent",
+        "it" => "per cento",
+        _ => "percent",
+    };
+    Regex::new(r"(\d+(?:[.,]\d+)?)\s*%")
+        .expect("valid regex")
+        .replace_all(text, format!("$1 {word}"))
+        .into_owned()
+}
+
+fn expand_ratios(text: &str, lang: &str) -> String {
+    let word = match lang {
+        "he" => "ל",
+        "de" => "zu",
+        _ => "to",
+    };
+    Regex::new(r"(\d+)\s*:\s*(\d+)")
+        .expect("valid regex")
+        .replace_all(text, format!("$1 {word} $2"))
+        .into_owned()
+}
+
+fn expand_numbers(text: &str, lang: &str) -> String {
+    let numbers = Regex::new(r"\d+(?:[.,]\d+)?").expect("valid regex");
+    numbers
+        .replace_all(text, |caps: &Captures| {
+            let raw = &caps[0];
+            if raw.contains(['.', ',']) {
+                let separator = if lang == "he" { " נקודה " } else { " point " };
+                raw.replace(['.', ','], separator)
+                    .split_whitespace()
+                    .map(|piece| piece.parse::<u16>().ok().map_or_else(|| piece.to_owned(), |n| number_to_words(n, lang)))
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            } else {
+                raw.parse::<u16>()
+                    .map(|n| number_to_words(n, lang))
+                    .unwrap_or_else(|_| spell_digits_lang(raw, lang))
+            }
+        })
+        .into_owned()
+}
+
+fn strip_silent_separator_tokens(text: &str) -> String {
+    let text = Regex::new(r"(?u)([\u{0590}-\u{05ff}])[-–—‑]+([A-Za-z0-9])")
+        .expect("valid regex")
+        .replace_all(text, "$1 $2")
+        .into_owned();
+    let text = Regex::new(r"(?u)([A-Za-z0-9])[-–—‑]+([\u{0590}-\u{05ff}])")
+        .expect("valid regex")
+        .replace_all(&text, "$1 $2")
+        .into_owned();
+    let text = Regex::new(r"\s*[-–—‑]+\s*")
+        .expect("valid regex")
+        .replace_all(&text, " ")
+        .into_owned();
+    let text = Regex::new(r"\s*:+\s*")
+        .expect("valid regex")
+        .replace_all(&text, " ")
+        .into_owned();
+    Regex::new(r"\s+").expect("valid regex").replace_all(&text, " ").trim().to_owned()
+}
+
 /// Prepare one sentence.
 ///
 /// - `text` keeps niqqud (never stripped for text-native models).
@@ -253,7 +598,7 @@ pub fn normalize_for_speech(text: &str) -> String {
 pub fn prepare_text(
     text: &str,
     mut phonikud: Option<&mut dyn NikudPhonemizer>,
-    mut renikud: Option<&mut dyn PlainHebrewPhonemizer>,
+    renikud: Option<&mut dyn PlainHebrewPhonemizer>,
     phonetic_mode: bool,
 ) -> Result<PreparedText> {
     let normalized = normalize_for_speech(text);
@@ -269,8 +614,7 @@ pub fn prepare_text(
     let phonikud = phonikud.as_deref_mut().ok_or_else(|| {
         anyhow::anyhow!("niqqud input requires a Phonikud-compatible phonemizer")
     })?;
-    let (phonetic_text, phonetic_spans) =
-        replace_nikud_words(&normalized, phonikud, renikud.as_deref_mut())?;
+    let (phonetic_text, phonetic_spans) = replace_nikud_words(&normalized, phonikud, renikud)?;
     Ok(PreparedText {
         original: text.to_owned(),
         text: normalized,
@@ -282,54 +626,58 @@ pub fn prepare_text(
 fn replace_nikud_words(
     text: &str,
     phonikud: &mut dyn NikudPhonemizer,
+    renikud: Option<&mut dyn PlainHebrewPhonemizer>,
+) -> Result<(String, Vec<PhoneticSpan>)> {
+    match renikud {
+        Some(engine) => replace_nikud_words_inner(text, phonikud, Some(engine)),
+        None => replace_nikud_words_inner(text, phonikud, None),
+    }
+}
+
+fn replace_nikud_words_inner(
+    text: &str,
+    phonikud: &mut dyn NikudPhonemizer,
     mut renikud: Option<&mut dyn PlainHebrewPhonemizer>,
 ) -> Result<(String, Vec<PhoneticSpan>)> {
     let mut output = String::with_capacity(text.len());
     let mut spans = Vec::new();
     let mut word = String::new();
 
-    let flush = |word: &mut String,
-                 output: &mut String,
-                 spans: &mut Vec<PhoneticSpan>,
-                 phonikud: &mut dyn NikudPhonemizer,
-                 renikud: &mut Option<&mut dyn PlainHebrewPhonemizer>|
-     -> Result<()> {
-        if word.is_empty() {
-            return Ok(());
-        }
-        if contains_nikud(word) {
-            let span = phonemize_nikud_word(word, phonikud, renikud.as_deref_mut())?;
-            output.push_str(&span.ipa);
-            spans.push(span);
-            word.clear();
-        } else {
-            output.push_str(word);
-            word.clear();
-        }
-        Ok(())
-    };
-
     for character in text.chars() {
         if is_hebrew_word_character(character) {
             word.push(character);
+            continue;
+        }
+        if !word.is_empty() {
+            if contains_nikud(&word) {
+                let span = match renikud.as_mut() {
+                    Some(engine) => {
+                        phonemize_nikud_word(&word, phonikud, Some(&mut **engine))?
+                    }
+                    None => phonemize_nikud_word(&word, phonikud, None)?,
+                };
+                output.push_str(&span.ipa);
+                spans.push(span);
+            } else {
+                output.push_str(&word);
+            }
+            word.clear();
+        }
+        output.push(character);
+    }
+
+    if !word.is_empty() {
+        if contains_nikud(&word) {
+            let span = match renikud.as_mut() {
+                Some(engine) => phonemize_nikud_word(&word, phonikud, Some(&mut **engine))?,
+                None => phonemize_nikud_word(&word, phonikud, None)?,
+            };
+            output.push_str(&span.ipa);
+            spans.push(span);
         } else {
-            flush(
-                &mut word,
-                &mut output,
-                &mut spans,
-                phonikud,
-                &mut renikud,
-            )?;
-            output.push(character);
+            output.push_str(&word);
         }
     }
-    flush(
-        &mut word,
-        &mut output,
-        &mut spans,
-        phonikud,
-        &mut renikud,
-    )?;
     Ok((output, spans))
 }
 
@@ -489,22 +837,96 @@ fn expand_identifier(token: &str) -> String {
 }
 
 fn spell_digits(text: &str) -> String {
+    spell_digits_lang(text, "he")
+}
+
+fn spell_digits_lang(text: &str, lang: &str) -> String {
+    let words = match lang {
+        "he" => ["אפס", "אחת", "שתיים", "שלוש", "ארבע", "חמש", "שש", "שבע", "שמונה", "תשע"],
+        _ => ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"],
+    };
     text.chars()
-        .filter_map(|digit| match digit {
-            '0' => Some("אפס"),
-            '1' => Some("אחת"),
-            '2' => Some("שתיים"),
-            '3' => Some("שלוש"),
-            '4' => Some("ארבע"),
-            '5' => Some("חמש"),
-            '6' => Some("שש"),
-            '7' => Some("שבע"),
-            '8' => Some("שמונה"),
-            '9' => Some("תשע"),
-            _ => None,
-        })
+        .filter_map(|digit| digit.to_digit(10).map(|digit| words[digit as usize]))
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+fn number_to_words(number: u16, lang: &str) -> String {
+    if lang != "he" {
+        return match number {
+            0 => "zero".to_owned(),
+            1 => "one".to_owned(),
+            2 => "two".to_owned(),
+            3 => "three".to_owned(),
+            4 => "four".to_owned(),
+            5 => "five".to_owned(),
+            6 => "six".to_owned(),
+            7 => "seven".to_owned(),
+            8 => "eight".to_owned(),
+            9 => "nine".to_owned(),
+            10 => "ten".to_owned(),
+            11 => "eleven".to_owned(),
+            12 => "twelve".to_owned(),
+            13 => "thirteen".to_owned(),
+            14 => "fourteen".to_owned(),
+            15 => "fifteen".to_owned(),
+            16 => "sixteen".to_owned(),
+            17 => "seventeen".to_owned(),
+            18 => "eighteen".to_owned(),
+            19 => "nineteen".to_owned(),
+            20 => "twenty".to_owned(),
+            _ => spell_digits_lang(&number.to_string(), lang),
+        };
+    }
+    let units = [
+        "אפס", "אחת", "שתיים", "שלוש", "ארבע", "חמש", "שש", "שבע", "שמונה", "תשע",
+        "עשר", "אחת עשרה", "שתים עשרה", "שלוש עשרה", "ארבע עשרה", "חמש עשרה",
+        "שש עשרה", "שבע עשרה", "שמונה עשרה", "תשע עשרה",
+    ];
+    if number < 20 {
+        return units[number as usize].to_owned();
+    }
+    let tens = [
+        "", "", "עשרים", "שלושים", "ארבעים", "חמישים", "שישים", "שבעים", "שמונים", "תשעים",
+    ];
+    if number < 100 {
+        let ten = number / 10;
+        let remainder = number % 10;
+        return if remainder == 0 {
+            tens[ten as usize].to_owned()
+        } else {
+            format!("{} ו{}", tens[ten as usize], units[remainder as usize])
+        };
+    }
+    if number < 1_000 {
+        let hundred = number / 100;
+        let remainder = number % 100;
+        let head = match hundred {
+            1 => "מאה".to_owned(),
+            2 => "מאתיים".to_owned(),
+            n => format!("{} מאות", number_to_words(n, "he")),
+        };
+        return if remainder == 0 {
+            head
+        } else {
+            format!("{head} {}", number_to_words(remainder, "he"))
+        };
+    }
+    if number < 10_000 {
+        let thousand = number / 1_000;
+        let remainder = number % 1_000;
+        let head = if thousand == 1 {
+            "אלף".to_owned()
+        } else {
+            format!("{} אלף", number_to_words(thousand, "he"))
+        };
+        return if remainder == 0 {
+            head
+        } else {
+            format!("{head} {}", number_to_words(remainder, "he"))
+        };
+    }
+    spell_digits_lang(&number.to_string(), "he")
 }
 
 fn list_number(number: u8) -> String {
@@ -607,5 +1029,33 @@ mod tests {
         let text = normalize_for_speech("מספר TKT-90254, טלפון 03-5551234.");
         assert!(text.contains("T K T"));
         assert!(text.contains("אפס שלוש חמש חמש חמש"));
+    }
+
+    #[test]
+    fn prepares_hebrew_reference_segments_and_structured_values() {
+        let text = prepare_text_for_synthesis(
+            "הג'מיני הגיע ל-GPU ב-08:15, קוד TKT-90254 הוא 50% הצלחה.",
+            "he",
+        );
+        assert!(text.contains("<en>Gemini</en>"));
+        assert!(text.contains("אל GPU"));
+        assert!(text.contains(REF_CODE_MARK_OPEN));
+        assert!(text.contains("אחוז"));
+    }
+
+    #[test]
+    fn splits_slow_reference_segments() {
+        let segments = split_prepared_by_reference_codes("רגיל 【אחת שתיים】.");
+        assert_eq!(segments.len(), 2);
+        assert!(!segments[0].is_reference_code);
+        assert!(segments[1].is_reference_code);
+        assert_eq!(segments[1].text, "אחת שתיים.");
+    }
+
+    #[test]
+    fn expands_dialogue_and_list_markers() {
+        let text = prepare_text_for_synthesis("1. אמר \"שלום\"", "he");
+        assert!(text.starts_with("אחד."), "unexpected prepared text: {text:?}");
+        assert!(text.contains("אמר, שלום."), "unexpected prepared text: {text:?}");
     }
 }

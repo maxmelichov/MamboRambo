@@ -16,13 +16,11 @@ fn main() -> Result<()> {
         .context("Set RENIKUD_MODEL=/path/to/renikud.onnx for Hebrew phonemization")?;
 
     let mut phonemizer = Phonemizer::new(Some(renikud_model))?;
-    let phonemes = phonemizer.phonemize(&text)?;
-    eprintln!("Phonemes: {phonemes}");
-
     let mut tts = BlueTts::from_dir("onnx_models")?;
     let style = VoiceStyle::from_json("voices/female1.json")?;
-    let audio = tts.create(
-        &phonemes,
+    let audio = tts.synthesize_text(
+        &mut phonemizer,
+        &text,
         &style,
         SynthesisOptions {
             lang: "he".to_string(),

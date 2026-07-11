@@ -9,18 +9,28 @@ use std::{fs, path::Path};
 use anyhow::{Context, Result, anyhow, bail};
 use ndarray::{Array, Array1, Array3};
 use ort::{session::Session, value::Tensor};
+use rand::SeedableRng;
 use rand_distr::{Distribution, StandardNormal};
 use serde_json::Value;
 
 pub use crate::chunking::ChunkingOptions;
 use crate::{chunking::append_silence, text::Tokenizer};
+use crate::{
+    handling::{prepare_text_for_synthesis, split_prepared_by_reference_codes},
+    phonemize::{Language, Phonemizer},
+};
 
-const SAMPLE_RATE: usize = 44_100;
-const BASE_CHUNK_SIZE: usize = 512;
-const CHUNK_COMPRESS_FACTOR: usize = 6;
-const LATENT_DIM: usize = 24;
-const COMPRESSED_CHANNELS: usize = LATENT_DIM * CHUNK_COMPRESS_FACTOR;
+const DEFAULT_SAMPLE_RATE: usize = 44_100;
+const DEFAULT_BASE_CHUNK_SIZE: usize = 512;
+const DEFAULT_CHUNK_COMPRESS_FACTOR: usize = 6;
+const DEFAULT_LATENT_DIM: usize = 24;
+const DEFAULT_PACE_BLEND: f32 = 0.30;
+const MIXED_PACE_BLEND: f32 = 0.25;
+const REFERENCE_CODE_SPEED_SCALE: f32 = 0.90;
+const REFERENCE_CODE_SILENCE: f32 = 0.12;
+const DEFAULT_SEED: u64 = 42;
 
+#[derive(Clone, Debug)]
 pub struct SynthesisOptions {
     pub lang: String,
     pub total_step: usize,
@@ -76,6 +86,26 @@ pub struct BlueTts {
     vector_estimator: Session,
     vocoder: Session,
     tokenizer: Tokenizer,
+    geometry: ModelGeometry,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct ModelGeometry {
+    sample_rate: usize,
+    base_chunk_size: usize,
+    chunk_compress_factor: usize,
+    latent_dim: usize,
+}
+
+impl Default for ModelGeometry {
+    fn default() -> Self {
+        Self {
+            sample_rate: DEFAULT_SAMPLE_RATE,
+            base_chunk_size: DEFAULT_BASE_CHUNK_SIZE,
+            chunk_compress_factor: DEFAULT_CHUNK_COMPRESS_FACTOR,
+            latent_dim: DEFAULT_LATENT_DIM,
+        }
+    }
 }
 
 impl BlueTts {
@@ -87,6 +117,7 @@ impl BlueTts {
             vector_estimator: load_session(dir.join("vector_estimator.onnx"))?,
             vocoder: load_session(dir.join("vocoder.onnx"))?,
             tokenizer: Tokenizer::from_json(dir.join("vocab.json"))?,
+            geometry: load_geometry(dir.join("tts.json"))?,
         })
     }
 
@@ -97,11 +128,12 @@ impl BlueTts {
             vector_estimator: load_session_from_memory(models.vector_estimator)?,
             vocoder: load_session_from_memory(models.vocoder)?,
             tokenizer: Tokenizer::from_json_bytes(models.vocab)?,
+            geometry: ModelGeometry::default(),
         })
     }
 
     pub fn sample_rate(&self) -> u32 {
-        SAMPLE_RATE as u32
+        self.geometry.sample_rate as u32
     }
 
     pub fn create(
@@ -110,13 +142,24 @@ impl BlueTts {
         style: &VoiceStyle,
         opts: SynthesisOptions,
     ) -> Result<Vec<f32>> {
+        self.create_seeded(phonemes, style, opts, DEFAULT_SEED)
+    }
+
+    /// Run deterministic phoneme-level synthesis with an explicit latent seed.
+    pub fn create_seeded(
+        &mut self,
+        phonemes: &str,
+        style: &VoiceStyle,
+        opts: SynthesisOptions,
+        seed: u64,
+    ) -> Result<Vec<f32>> {
         if let Some(chunking) = &opts.chunking {
             if chunking.enabled {
                 let chunks = chunking::split_phonemes(phonemes, chunking.max_chars);
                 let mut audio = Vec::new();
                 let last_idx = chunks.len().saturating_sub(1);
                 for (idx, chunk) in chunks.iter().enumerate() {
-                    audio.extend(self.synthesize_chunk(chunk, style, &opts)?);
+                    audio.extend(self.synthesize_chunk(chunk, style, &opts, seed.wrapping_add(idx as u64))?);
                     if idx != last_idx {
                         append_silence(&mut audio, self.sample_rate(), chunking.silence_seconds);
                     }
@@ -124,7 +167,59 @@ impl BlueTts {
                 return Ok(audio);
             }
         }
-        self.synthesize_chunk(phonemes, style, &opts)
+        self.synthesize_chunk(phonemes, style, &opts, seed)
+    }
+
+    /// Prepare, phonemize, and synthesize raw multilingual text.
+    ///
+    /// `create` remains available for callers that already have IPA. This path
+    /// mirrors the Space's text-facing behavior, including slow reference-code
+    /// segments and deterministic chunk seeds.
+    pub fn synthesize_text(
+        &mut self,
+        phonemizer: &mut Phonemizer,
+        text: &str,
+        style: &VoiceStyle,
+        opts: SynthesisOptions,
+    ) -> Result<Vec<f32>> {
+        let language = Language::try_from(opts.lang.as_str())?;
+        let prepared = prepare_text_for_synthesis(text, language.code());
+        let segments = split_prepared_by_reference_codes(&prepared);
+        let mut output = Vec::new();
+        let mut previous_was_reference = false;
+
+        for (index, segment) in segments.iter().enumerate() {
+            if segment.text.is_empty() {
+                continue;
+            }
+            let phonemes = phonemizer.g2p(&segment.text, language)?;
+            if phonemes.is_empty() {
+                continue;
+            }
+            let mut segment_opts = opts.clone();
+            if segment.is_reference_code {
+                segment_opts.speed *= REFERENCE_CODE_SPEED_SCALE;
+            }
+            let audio = self.create_seeded(
+                &phonemes,
+                style,
+                segment_opts,
+                DEFAULT_SEED.wrapping_add(index as u64),
+            )?;
+            if !output.is_empty() {
+                let gap = if segment.is_reference_code || previous_was_reference {
+                    REFERENCE_CODE_SILENCE
+                } else {
+                    opts.chunking
+                        .as_ref()
+                        .map_or(0.15, |chunking| chunking.silence_seconds)
+                };
+                append_silence(&mut output, self.sample_rate(), gap);
+            }
+            output.extend(audio);
+            previous_was_reference = segment.is_reference_code;
+        }
+        Ok(normalize_generated_audio(output))
     }
 
     fn synthesize_chunk(
@@ -132,6 +227,7 @@ impl BlueTts {
         phonemes: &str,
         style: &VoiceStyle,
         opts: &SynthesisOptions,
+        seed: u64,
     ) -> Result<Vec<f32>> {
         let (text_ids, text_mask) = self.tokenizer.encode_batch(&[phonemes], &[&opts.lang])?;
 
@@ -140,11 +236,19 @@ impl BlueTts {
             "style_dp" => Tensor::from_array(style.dp.clone())?,
             "text_mask" => Tensor::from_array(text_mask.clone())?,
         })?;
-        let duration = output_vec_f32(&dur[0])?
+        let predicted_duration = output_vec_f32(&dur[0])?
             .first()
             .copied()
-            .context("duration output was empty")?
-            / opts.speed.max(1e-6);
+            .context("duration output was empty")?;
+        let duration = blend_duration_pace(
+            predicted_duration,
+            text_mask.sum(),
+            if has_mixed_language_tags(phonemes) {
+                MIXED_PACE_BLEND
+            } else {
+                DEFAULT_PACE_BLEND
+            },
+        ) / opts.speed.max(1e-6);
 
         let text_emb = self.text_encoder.run(ort::inputs! {
             "text_ids" => Tensor::from_array(text_ids)?,
@@ -153,7 +257,7 @@ impl BlueTts {
         })?;
         let text_emb = output_array3(&text_emb[0])?;
 
-        let (mut xt, latent_mask) = sample_noisy_latent(duration);
+        let (mut xt, latent_mask) = sample_noisy_latent(duration, self.geometry, seed);
         let total_step = Array1::from_vec(vec![opts.total_step as f32]);
         let cfg_scale = Array1::from_vec(vec![opts.cfg_scale]);
 
@@ -177,7 +281,7 @@ impl BlueTts {
         })?;
         let wav = output_array3(&wav[0])?;
         let mut audio: Vec<f32> = wav.iter().copied().collect();
-        let trim = BASE_CHUNK_SIZE * CHUNK_COMPRESS_FACTOR;
+        let trim = self.geometry.base_chunk_size * self.geometry.chunk_compress_factor;
         if audio.len() > 2 * trim {
             audio = audio[trim..audio.len() - trim].to_vec();
         }
@@ -236,20 +340,106 @@ fn load_session_from_memory(bytes: &[u8]) -> Result<Session> {
         .map_err(|e| anyhow!("{e}"))
 }
 
-fn sample_noisy_latent(duration: f32) -> (Array3<f32>, Array3<f32>) {
-    let wav_len = (duration * SAMPLE_RATE as f32).max(1.0);
-    let chunk = BASE_CHUNK_SIZE * CHUNK_COMPRESS_FACTOR;
-    let latent_len = ((wav_len + chunk as f32 - 1.0) / chunk as f32)
-        .floor()
-        .max(1.0) as usize;
+fn sample_noisy_latent(
+    duration: f32,
+    geometry: ModelGeometry,
+    seed: u64,
+) -> (Array3<f32>, Array3<f32>) {
+    let wav_len = (duration * geometry.sample_rate as f32).max(1.0).ceil() as usize;
+    let chunk = geometry.base_chunk_size * geometry.chunk_compress_factor;
+    let latent_len = wav_len.div_ceil(chunk).max(1);
+    let valid_latent_len = wav_len.div_ceil(chunk).max(1);
 
-    let mut rng = rand::rng();
+    let mut rng = rand::rngs::StdRng::seed_from_u64(seed);
     let normal = StandardNormal;
-    let xt = Array::from_shape_fn((1, COMPRESSED_CHANNELS, latent_len), |_| {
+    let mut xt = Array::from_shape_fn(
+        (
+            1,
+            geometry.latent_dim * geometry.chunk_compress_factor,
+            latent_len,
+        ),
+        |_| {
         normal.sample(&mut rng)
-    });
-    let mask = Array3::from_elem((1, 1, latent_len), 1.0);
+    },
+    );
+    let mut mask = Array3::zeros((1, 1, latent_len));
+    for index in 0..valid_latent_len {
+        mask[[0, 0, index]] = 1.0;
+    }
+    for channel in 0..xt.shape()[1] {
+        for index in 0..latent_len {
+            xt[[0, channel, index]] *= mask[[0, 0, index]];
+        }
+    }
     (xt, mask)
+}
+
+fn blend_duration_pace(duration: f32, text_token_count: f32, pace_blend: f32) -> f32 {
+    let blend = pace_blend.clamp(0.0, 1.0);
+    let token_count = text_token_count.max(1.0);
+    let predicted_dpt = duration / token_count;
+    let blended_dpt = (1.0 - blend) * predicted_dpt + blend * 0.0625;
+    blended_dpt * token_count
+}
+
+fn has_mixed_language_tags(phonemes: &str) -> bool {
+    ["en", "es", "de", "it"]
+        .iter()
+        .any(|language| phonemes.contains(&format!("<{language}>")))
+        && phonemes.contains("<he>")
+}
+
+fn normalize_generated_audio(mut audio: Vec<f32>) -> Vec<f32> {
+    if audio.is_empty() || audio.iter().any(|sample| !sample.is_finite()) {
+        return audio;
+    }
+    let peak = audio.iter().map(|sample| sample.abs()).fold(0.0f32, f32::max);
+    if peak < 1e-6 {
+        return audio;
+    }
+    let threshold = (peak * 0.02).max(1e-4);
+    let active: Vec<f32> = audio
+        .iter()
+        .copied()
+        .filter(|sample| sample.abs() > threshold)
+        .collect();
+    let source = if active.is_empty() { &audio } else { &active };
+    let rms = (source.iter().map(|sample| sample * sample).sum::<f32>() / source.len() as f32).sqrt();
+    if rms < 1e-6 {
+        return audio;
+    }
+    let gain = (0.08 / rms).min(0.95 / peak).min(4.0);
+    if gain > 1.0 {
+        for sample in &mut audio {
+            *sample *= gain;
+        }
+    }
+    audio
+}
+
+fn load_geometry(path: impl AsRef<Path>) -> Result<ModelGeometry> {
+    let path = path.as_ref();
+    if !path.exists() {
+        return Ok(ModelGeometry::default());
+    }
+    let raw = fs::read_to_string(path)
+        .with_context(|| format!("read model config {}", path.display()))?;
+    let json: Value = serde_json::from_str(&raw)
+        .with_context(|| format!("parse model config {}", path.display()))?;
+    let mut geometry = ModelGeometry::default();
+    geometry.sample_rate = json["ae"]["sample_rate"]
+        .as_u64()
+        .unwrap_or(geometry.sample_rate as u64) as usize;
+    geometry.base_chunk_size = json["ae"]["base_chunk_size"]
+        .as_u64()
+        .unwrap_or(geometry.base_chunk_size as u64) as usize;
+    geometry.chunk_compress_factor = json["ttl"]["chunk_compress_factor"]
+        .as_u64()
+        .unwrap_or(geometry.chunk_compress_factor as u64) as usize;
+    geometry.latent_dim = json["ttl"]["latent_dim"]
+        .as_u64()
+        .unwrap_or(geometry.latent_dim as u64) as usize;
+    Ok(geometry)
 }
 
 fn output_vec_f32(value: &ort::value::DynValue) -> Result<Vec<f32>> {
@@ -273,5 +463,31 @@ fn flatten_f32(value: &Value) -> Vec<f32> {
         Value::Array(items) => items.iter().flat_map(flatten_f32).collect(),
         Value::Number(n) => vec![n.as_f64().unwrap_or(0.0) as f32],
         _ => Vec::new(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn duration_pace_blend_moves_toward_reference() {
+        let blended = blend_duration_pace(1.0, 10.0, 0.30);
+        assert!((blended - 0.8875).abs() < 1e-6);
+    }
+
+    #[test]
+    fn seeded_latents_are_reproducible() {
+        let geometry = ModelGeometry::default();
+        let (first, first_mask) = sample_noisy_latent(1.0, geometry, 42);
+        let (second, second_mask) = sample_noisy_latent(1.0, geometry, 42);
+        assert_eq!(first, second);
+        assert_eq!(first_mask, second_mask);
+    }
+
+    #[test]
+    fn audio_normalization_does_not_clip() {
+        let audio = normalize_generated_audio(vec![0.001, -0.001, 0.002]);
+        assert!(audio.iter().all(|sample| sample.abs() <= 0.95));
     }
 }

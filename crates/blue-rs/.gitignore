@@ -1,5 +1,6 @@
 *.onnx
 *.tar.gz
+.ort/
 examples/out/
 onnx_models/
 ref.wav

@@ -2,9 +2,10 @@
 
 Rust ONNX inference for BlueTTS.
 
-The library expects phonemes at the inference boundary. Text phonemization is
-available as a helper module and examples, but `BlueTts::create` itself does
-not phonemize.
+`BlueTts::create` is the low-level phoneme inference boundary. For normal
+application input, use `BlueTts::synthesize_text` with a `Phonemizer`; it
+applies BlueTTS text preparation, mixed Hebrew/Latin G2P, reference-code
+pacing, and audio normalization before invoking the same ONNX pipeline.
 
 ## Install
 
@@ -63,6 +64,17 @@ SDKROOT=$(xcrun --show-sdk-path) cargo run --release --example embedded -- \
 
 Supported `--language` values for the phonemizer helper are `he`, `en`, `es`,
 `de`, and `it`.
+
+## Text preparation and G2P
+
+`Phonemizer::g2p(text, language)` is the standalone text-to-IPA function. It
+prepares Hebrew structured text (dates, times, phone numbers, IDs, list
+markers, punctuation and Hebrew/Latin boundaries) and emits per-language IPA
+spans. `BlueTts::synthesize_text` composes that function with inference.
+
+Plain Hebrew requires a Renikud model. Explicitly vocalized Hebrew (niqqud)
+also requires the caller to attach a `NikudPhonemizer` implementation with
+`Phonemizer::with_nikud_phonemizer`; the crate does not bundle Phonikud.
 
 On macOS, `SDKROOT=...` may be needed for `espeak-rs-sys`/bindgen to find system
 headers.
