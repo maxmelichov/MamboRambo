@@ -46,3 +46,6 @@ __pycache__/
 .DS_Store
 *.swp
 *.swo
+.pnpm-store
+mamborambo-desktop/src-tauri/binaries/libonnxruntime.so.1
+mamborambo-desktop/src-tauri/binaries/libonnxruntime.so.1.23.2
