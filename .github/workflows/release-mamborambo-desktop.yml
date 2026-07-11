@@ -71,7 +71,10 @@ jobs:
             libwebkit2gtk-4.1-dev \
             libayatana-appindicator3-dev \
             librsvg2-dev \
-            patchelf
+            patchelf \
+            clang \
+            libclang-dev \
+            libasound2-dev
 
       - name: Install frontend dependencies
         run: pnpm install
@@ -92,9 +95,9 @@ jobs:
           SIGN_TUNNEL_SECRET: ${{ secrets.SIGN_TUNNEL_SECRET }}
         with:
           tagName: mamborambo-desktop-v__VERSION__
-          releaseName: mamborambo desktop v__VERSION__
-          releaseBody: "MamboRambo desktop build."
-          prerelease: true
+          releaseName: MamboRambo Desktop v__VERSION__
+          releaseBody: "MamboRambo desktop builds for macOS, Windows, and Linux."
+          prerelease: false
           projectPath: mamborambo-desktop
           tauriScript: pnpm exec tauri
           args: ${{ matrix.args }}
@@ -114,9 +117,9 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
           tagName: mamborambo-desktop-v__VERSION__
-          releaseName: mamborambo desktop v__VERSION__
-          releaseBody: "MamboRambo desktop build."
-          prerelease: true
+          releaseName: MamboRambo Desktop v__VERSION__
+          releaseBody: "MamboRambo desktop builds for macOS, Windows, and Linux."
+          prerelease: false
           projectPath: mamborambo-desktop
           tauriScript: pnpm exec tauri
           args: ${{ matrix.args }}

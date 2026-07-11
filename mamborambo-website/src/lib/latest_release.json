@@ -1,49 +1,14 @@
 {
-  "version": "mamborambo-desktop-v1.0.6",
-  "url": "https://github.com/maxmelichov/MamboRambo/releases/tag/mamborambo-desktop-v1.0.6",
-  "publishedAt": "2026-04-30T12:45:28Z",
+  "version": "mamborambo-desktop-v1.0.7",
+  "url": "https://github.com/maxmelichov/MamboRambo/releases/tag/mamborambo-desktop-v1.0.7",
+  "publishedAt": "2026-07-11T18:37:27Z",
   "assets": [
     {
-      "url": "https://github.com/maxmelichov/MamboRambo/releases/download/mamborambo-desktop-v1.0.6/mamborambo-1.0.6-1.x86_64.rpm",
-      "name": "mamborambo-1.0.6-1.x86_64.rpm",
-      "platform": "linux",
-      "arch": "linux-x86_64",
-      "kind": "rpm"
-    },
-    {
-      "url": "https://github.com/maxmelichov/MamboRambo/releases/download/mamborambo-desktop-v1.0.6/mamborambo_1.0.6_aarch64.dmg",
-      "name": "mamborambo_1.0.6_aarch64.dmg",
+      "url": "https://github.com/maxmelichov/MamboRambo/releases/download/mamborambo-desktop-v1.0.7/MamboRambo_1.0.7_aarch64.dmg",
+      "name": "MamboRambo_1.0.7_aarch64.dmg",
       "platform": "macos",
       "arch": "darwin-aarch64",
       "kind": "dmg"
-    },
-    {
-      "url": "https://github.com/maxmelichov/MamboRambo/releases/download/mamborambo-desktop-v1.0.6/mamborambo_1.0.6_amd64.AppImage",
-      "name": "mamborambo_1.0.6_amd64.AppImage",
-      "platform": "linux",
-      "arch": "linux-x86_64",
-      "kind": "appimage"
-    },
-    {
-      "url": "https://github.com/maxmelichov/MamboRambo/releases/download/mamborambo-desktop-v1.0.6/mamborambo_1.0.6_amd64.deb",
-      "name": "mamborambo_1.0.6_amd64.deb",
-      "platform": "linux",
-      "arch": "linux-x86_64",
-      "kind": "deb"
-    },
-    {
-      "url": "https://github.com/maxmelichov/MamboRambo/releases/download/mamborambo-desktop-v1.0.6/mamborambo_1.0.6_x64-setup.exe",
-      "name": "mamborambo_1.0.6_x64-setup.exe",
-      "platform": "windows",
-      "arch": "windows-x86_64",
-      "kind": "exe"
-    },
-    {
-      "url": "https://github.com/maxmelichov/MamboRambo/releases/download/mamborambo-desktop-v1.0.6/mamborambo_1.0.6_x64_en-US.msi",
-      "name": "mamborambo_1.0.6_x64_en-US.msi",
-      "platform": "windows",
-      "arch": "windows-x86_64",
-      "kind": "msi"
     }
   ]
 }

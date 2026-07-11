@@ -1,6 +1,9 @@
 {
   "bundle": {
     "externalBin": ["binaries/mamborambo-server"],
+    "resources": [
+      "binaries/libonnxruntime*.dylib"
+    ],
     "macOS": {
       "entitlements": "entitlements.plist",
       "hardenedRuntime": true

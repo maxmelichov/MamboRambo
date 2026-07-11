@@ -1,9 +1,12 @@
 use std::{
+    env,
     io::BufRead,
-    path::Path,
+    path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     sync::{Arc, Mutex},
 };
+
+use tauri::Manager;
 
 use crate::model;
 
@@ -35,6 +38,7 @@ impl RunnerProcess {
                 }
             }
         }
+        prepend_native_library_paths(&mut cmd, app, binary_path);
 
         #[cfg(target_os = "windows")]
         {
@@ -175,5 +179,49 @@ fn format_runner_start_error(context: &str, error: &str, stderr: &str) -> String
         format!("{context}: {error}")
     } else {
         format!("{context}: {error}\n\nrunner stderr: {}", stderr.trim())
+    }
+}
+
+fn prepend_native_library_paths(cmd: &mut Command, app: &tauri::AppHandle, binary_path: &Path) {
+    let mut dirs: Vec<PathBuf> = Vec::new();
+    if let Some(parent) = binary_path.parent() {
+        dirs.push(parent.to_path_buf());
+    }
+    if let Ok(resource_dir) = app.path().resource_dir() {
+        dirs.push(resource_dir);
+    }
+    dirs.retain(|dir| dir.exists());
+    if dirs.is_empty() {
+        return;
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let current = env::var_os("PATH").unwrap_or_default();
+        let mut paths: Vec<PathBuf> = dirs;
+        paths.extend(env::split_paths(&current));
+        if let Ok(joined) = env::join_paths(paths) {
+            cmd.env("PATH", joined);
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        let current = env::var_os("LD_LIBRARY_PATH").unwrap_or_default();
+        let mut paths: Vec<PathBuf> = dirs;
+        paths.extend(env::split_paths(&current));
+        if let Ok(joined) = env::join_paths(paths) {
+            cmd.env("LD_LIBRARY_PATH", joined);
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let current = env::var_os("DYLD_LIBRARY_PATH").unwrap_or_default();
+        let mut paths: Vec<PathBuf> = dirs;
+        paths.extend(env::split_paths(&current));
+        if let Ok(joined) = env::join_paths(paths) {
+            cmd.env("DYLD_LIBRARY_PATH", joined);
+        }
     }
 }
