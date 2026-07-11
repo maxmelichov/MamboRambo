@@ -1,4 +1,4 @@
-import mamboramboLogo from "@/assets/mamborambo-logo.svg"
+import mamboramboLogo from "@/assets/mamborambo-logo.png"
 import { DownloadCta } from "@/components/DownloadCta"
 import { SiteFooter } from "@/components/SiteFooter"
 import { SiteHeader } from "@/components/SiteHeader"
@@ -15,8 +15,8 @@ export function HomePage() {
       <main className="flex-1">
         {/* Refined, Elegant Hero */}
         <section className="mx-auto flex w-full max-w-5xl flex-col items-center px-4 pt-8 pb-8 text-center sm:px-6 sm:pt-12 sm:pb-12">
-          <div className="mb-4 transition-transform hover:scale-110 duration-500">
-            <img src={mamboramboLogo} alt="" className="size-20 object-contain" />
+          <div className="mb-4 transition-transform hover:scale-105 duration-500">
+            <img src={mamboramboLogo} alt="MamboRambo" className="h-auto w-72 object-contain" />
           </div>
           
           <h1 className="max-w-4xl text-5xl font-bold tracking-tight text-balance text-foreground sm:text-6xl md:text-7xl">

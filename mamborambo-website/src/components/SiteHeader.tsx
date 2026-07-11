@@ -1,4 +1,4 @@
-import mamboramboLogo from "@/assets/mamborambo-logo.svg"
+import mamboramboLogo from "@/assets/mamborambo-mark.png"
 import { GithubIcon } from "@/components/icons/GithubIcon"
 import { githubUrl } from "@/lib/links"
 

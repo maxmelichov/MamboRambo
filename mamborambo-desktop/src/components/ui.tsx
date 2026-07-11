@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import { X } from "lucide-react";
 import { ComponentProps, ReactNode } from "react";
-import mamboramboLogo from "../assets/mamborambo-logo.svg";
+import mamboramboLogo from "../assets/mamborambo-mark.png";
 import { cn } from "../lib/classNames";
 
 type ButtonVariant = "primary" | "secondary" | "ghost" | "outline";

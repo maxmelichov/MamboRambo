@@ -1,6 +1,6 @@
 <p align="center">
   <a target="_blank" href="https://maxmelichov.github.io/MamboRambo/">
-    <img width="96" alt="MamboRambo logo" src="./mamborambo-desktop/src/assets/mamborambo-logo.svg" />
+    <img width="240" alt="MamboRambo logo" src="./mamborambo-desktop/src/assets/mamborambo-logo.png" />
   </a>
 </p>
 
@@ -8,7 +8,6 @@
 
 <p align="center">
   <strong>Native offline Qwen3-TTS for desktop</strong>
-  <br />
 </p>
 
 <p align="center">
@@ -44,3 +43,7 @@
 ## Build
 
 See [BUILDING.md](docs/BUILDING.md).
+
+---
+
+The is code taken from [Chirp](https://github.com/thewh1teagle/chirp).
