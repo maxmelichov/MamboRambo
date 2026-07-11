@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import { X } from "lucide-react";
 import { ComponentProps, ReactNode } from "react";
-import chirpLogo from "../assets/chirp-logo.svg";
+import mamboramboLogo from "../assets/mamborambo-logo.svg";
 import { cn } from "../lib/classNames";
 
 type ButtonVariant = "primary" | "secondary" | "ghost" | "outline";
@@ -47,14 +47,14 @@ export function Brand({ className }: { className?: string }) {
         className,
       )}
     >
-      <img src={chirpLogo} alt="" className="h-5 w-5 shrink-0" />
-      <span>Chirp</span>
+      <img src={mamboramboLogo} alt="" className="h-5 w-5 shrink-0" />
+      <span>MamboRambo</span>
     </div>
   );
 }
 
 export function LogoMark({ className }: { className?: string }) {
-  return <img src={chirpLogo} alt="" className={cn("shrink-0", className)} />;
+  return <img src={mamboramboLogo} alt="" className={cn("shrink-0", className)} />;
 }
 
 export function Eyebrow({ children, className }: { children: ReactNode; className?: string }) {

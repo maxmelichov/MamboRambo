@@ -1,13 +1,13 @@
 # Building
 
-Chirp is built from the Rust workspace and the Tauri desktop app. The desktop bundles a Rust sidecar named `chirp-server`.
+MamboRambo is built from the Rust workspace and the Tauri desktop app. The desktop bundles a Rust sidecar named `mamborambo-server`.
 
 ## Server
 
 Build the local HTTP server:
 
 ```console
-cargo build -p chirp-server --release --bin chirp-server
+cargo build -p mamborambo-server --release --bin mamborambo-server
 ```
 
 For a specific Tauri sidecar target:
@@ -16,10 +16,10 @@ For a specific Tauri sidecar target:
 uv run scripts/pre_build.py --target aarch64-apple-darwin
 ```
 
-That command builds `chirp-server` with Cargo and copies the platform-suffixed binary into:
+That command builds `mamborambo-server` with Cargo and copies the platform-suffixed binary into:
 
 ```text
-chirp-desktop/src-tauri/binaries/
+mamborambo-desktop/src-tauri/binaries/
 ```
 
 ## Desktop
@@ -27,7 +27,7 @@ chirp-desktop/src-tauri/binaries/
 Install frontend dependencies:
 
 ```console
-cd chirp-desktop
+cd mamborambo-desktop
 pnpm install
 ```
 
@@ -45,10 +45,10 @@ pnpm tauri build
 
 ## Models
 
-Packaged model releases use `chirp-models-v*` tags. The Qwen bundle layout is:
+Packaged model releases use `mamborambo-models-v*` tags. The Qwen bundle layout is:
 
 ```text
-chirp-models-q5_0/
+mamborambo-models-q5_0/
   qwen3-tts-model.gguf
   qwen3-tts-codec.gguf
   metadata.json
@@ -57,7 +57,7 @@ chirp-models-q5_0/
 Kokoro bundles contain:
 
 ```text
-chirp-kokoro-models-kokoro-v1.0/
+mamborambo-kokoro-models-kokoro-v1.0/
   kokoro-v1.0.onnx
   voices-v1.0.bin
   espeak-ng-data/
@@ -66,27 +66,27 @@ chirp-kokoro-models-kokoro-v1.0/
 
 ## Releases
 
-Server sidecar releases use `chirp-server-v*` tags:
+Server sidecar releases use `mamborambo-server-v*` tags:
 
 ```console
-git tag chirp-server-v0.1.0
-git push origin chirp-server-v0.1.0
+git tag mamborambo-server-v0.1.0
+git push origin mamborambo-server-v0.1.0
 ```
 
 Manual release workflow:
 
 ```console
-gh workflow run release-chirp-server.yml \
+gh workflow run release-mamborambo-server.yml \
   --ref main \
-  -f version=chirp-server-v0.1.0
+  -f version=mamborambo-server-v0.1.0
 ```
 
 ## Checks
 
 ```console
 cargo test --workspace
-cargo build -p chirp-server --release --bin chirp-server
-cd chirp-desktop
+cargo build -p mamborambo-server --release --bin mamborambo-server
+cd mamborambo-desktop
 pnpm build
 pnpm tauri build --debug
 ```

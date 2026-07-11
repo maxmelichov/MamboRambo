@@ -23,7 +23,7 @@ def detect_host_target() -> str | None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Build the Chirp server sidecar for Tauri builds")
+    parser = argparse.ArgumentParser(description="Build the MamboRambo server sidecar for Tauri builds")
     parser.add_argument("--target", help="Rust target triple, for example x86_64-unknown-linux-gnu")
     parser.add_argument("--profile", default="release", choices=["debug", "release"])
     args = parser.parse_args()
@@ -34,17 +34,17 @@ def main() -> int:
         return 0
 
     is_windows = target.endswith("windows-msvc")
-    sidecar_name = f"chirp-server-{target}" + (".exe" if is_windows else "")
-    dest_dir = ROOT / "chirp-desktop" / "src-tauri" / "binaries"
+    sidecar_name = f"mamborambo-server-{target}" + (".exe" if is_windows else "")
+    dest_dir = ROOT / "mamborambo-desktop" / "src-tauri" / "binaries"
     dest = dest_dir / sidecar_name
     profile_args = [] if args.profile == "debug" else ["--release"]
     cmd = [
         "cargo",
         "build",
         "-p",
-        "chirp-server",
+        "mamborambo-server",
         "--bin",
-        "chirp-server",
+        "mamborambo-server",
         "--target",
         target,
         *profile_args,
@@ -52,14 +52,14 @@ def main() -> int:
     print("+", " ".join(cmd))
     subprocess.run(cmd, cwd=ROOT, check=True)
 
-    source = ROOT / "target" / target / args.profile / ("chirp-server.exe" if is_windows else "chirp-server")
+    source = ROOT / "target" / target / args.profile / ("mamborambo-server.exe" if is_windows else "mamborambo-server")
     if not source.exists():
         raise FileNotFoundError(source)
     dest_dir.mkdir(parents=True, exist_ok=True)
     shutil.copy2(source, dest)
     if not is_windows:
         dest.chmod(dest.stat().st_mode | 0o111)
-    print(f"Installed Chirp server sidecar at {dest}")
+    print(f"Installed MamboRambo server sidecar at {dest}")
     return 0
 
 

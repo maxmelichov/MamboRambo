@@ -23,10 +23,10 @@ pub fn resolve_runner_binary(app: &tauri::AppHandle) -> Result<PathBuf, String> 
     #[cfg(target_os = "linux")]
     {
         for base in [
-            "/usr/lib/chirp",
-            "/usr/lib/chirp/binaries",
-            "/opt/chirp",
-            "/opt/chirp/binaries",
+            "/usr/lib/mamborambo",
+            "/usr/lib/mamborambo/binaries",
+            "/opt/mamborambo",
+            "/opt/mamborambo/binaries",
         ] {
             let path = PathBuf::from(base).join(binary_name);
             if path.exists() {
@@ -39,14 +39,14 @@ pub fn resolve_runner_binary(app: &tauri::AppHandle) -> Result<PathBuf, String> 
         return Ok(path);
     }
 
-    Err("Chirp server sidecar not found".to_string())
+    Err("MamboRambo server sidecar not found".to_string())
 }
 
 fn runner_binary_name() -> &'static str {
     if cfg!(target_os = "windows") {
-        "chirp-server.exe"
+        "mamborambo-server.exe"
     } else {
-        "chirp-server"
+        "mamborambo-server"
     }
 }
 

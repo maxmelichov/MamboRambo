@@ -84,7 +84,7 @@ export function HomePage({ bundle, setBundle, studio, setStudio }: HomePageProps
   }
 
   async function createVoice() {
-    const preferredRuntime = bundle?.runtime ?? localStorage.getItem("chirp.runtime") ?? "qwen";
+    const preferredRuntime = bundle?.runtime ?? localStorage.getItem("mamborambo.runtime") ?? "qwen";
     const current = bundle ?? (await invoke<ModelBundle>("get_model_bundle_for_runtime", { runtime: preferredRuntime }));
     setBundle(current);
     if (!current.installed) {

@@ -1,14 +1,14 @@
 use serde::Serialize;
 use utoipa::ToSchema;
 
-const QWEN_MODELS_TAG: &str = "chirp-models-v0.1.3";
+const QWEN_MODELS_TAG: &str = "mamborambo-models-v0.1.3";
 const QWEN_MODEL_FILE: &str = "qwen3-tts-model.gguf";
 const QWEN_CODEC_FILE: &str = "qwen3-tts-codec.gguf";
 const QWEN_MODEL_BASE_URL: &str = "https://huggingface.co/thewh1teagle/qwen3-tts-gguf/resolve/main";
 const KOKORO_MODELS_TAG: &str = "kokoro-v1.0";
-const KOKORO_MODEL_DIR: &str = "chirp-kokoro-models-kokoro-v1.0";
-const KOKORO_BUNDLE_URL: &str = "https://huggingface.co/thewh1teagle/chirp-kokoro-models/resolve/main/chirp-kokoro-models-kokoro-v1.0.tar.gz";
-const VOICES_CATALOG_URL: &str = "https://raw.githubusercontent.com/thewh1teagle/chirp/main/chirp-desktop/src/assets/voices.json";
+const KOKORO_MODEL_DIR: &str = "mamborambo-kokoro-models-kokoro-v1.0";
+const KOKORO_BUNDLE_URL: &str = "https://huggingface.co/maxmelichov/MamboRambo-kokoro-models/resolve/main/mamborambo-kokoro-models-kokoro-v1.0.tar.gz";
+const VOICES_CATALOG_URL: &str = "https://raw.githubusercontent.com/maxmelichov/MamboRambo/main/mamborambo-desktop/src/assets/voices.json";
 
 #[derive(Debug, Serialize, ToSchema)]
 pub struct ModelSourceFile {
@@ -60,7 +60,7 @@ pub fn model_sources() -> ModelSourcesResponse {
                     },
                 ],
                 archive_url: None,
-                directory: "chirp-models-q5_0",
+                directory: "mamborambo-models-q5_0",
             },
             ModelSource {
                 id: "kokoro",
@@ -76,9 +76,9 @@ pub fn model_sources() -> ModelSourcesResponse {
         ],
         voices_url: VOICES_CATALOG_URL,
         default_paths: vec![
-            "macOS: ~/Library/Application Support/com.thewh1teagle.chirp/models",
-            "Windows: %LOCALAPPDATA%\\com.thewh1teagle.chirp\\models",
-            "Linux: ~/.local/share/com.thewh1teagle.chirp/models",
+            "macOS: ~/Library/Application Support/com.maxmelichov.mamborambo/models",
+            "Windows: %LOCALAPPDATA%\\com.maxmelichov.mamborambo\\models",
+            "Linux: ~/.local/share/com.maxmelichov.mamborambo/models",
         ],
     }
 }

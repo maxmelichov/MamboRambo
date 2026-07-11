@@ -36,7 +36,7 @@ pub async fn speech(State(server): State<SharedServer>, Json(body): Json<SpeechB
     }
 
     let Ok(tmp) = tempfile::Builder::new()
-        .prefix("chirp-speech-")
+        .prefix("mamborambo-speech-")
         .suffix(".wav")
         .tempfile()
     else {

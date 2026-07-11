@@ -48,7 +48,7 @@ export function OnboardPage({ bundle, setBundle }: PageProps) {
         if (cancelled) return;
         setBundles({ qwen, kokoro });
         setSources(modelSources.runtimes);
-        const preferredRuntime = (localStorage.getItem("chirp.runtime") as RuntimeId | null) ?? bundle?.runtime;
+        const preferredRuntime = (localStorage.getItem("mamborambo.runtime") as RuntimeId | null) ?? bundle?.runtime;
         if (preferredRuntime === "kokoro" && kokoro.installed) {
           setRuntime("kokoro");
         } else if (preferredRuntime === "qwen" && qwen.installed) {
@@ -77,7 +77,7 @@ export function OnboardPage({ bundle, setBundle }: PageProps) {
       setRuntime(nextRuntime);
       const existing = bundles[nextRuntime];
       const selected = existing?.installed ? existing : await invoke<ModelBundle>("download_model_bundle", { runtime: nextRuntime });
-      localStorage.setItem("chirp.runtime", selected.runtime);
+      localStorage.setItem("mamborambo.runtime", selected.runtime);
       setBundles((current) => ({ ...current, [selected.runtime]: selected }));
       await invoke("stop_runner").catch(() => undefined);
       setBundle(selected);
@@ -98,8 +98,8 @@ export function OnboardPage({ bundle, setBundle }: PageProps) {
       : "Starting";
   const stageLabel = progress?.stage === "extracting" ? "Optimizing models..." : "Downloading voice model...";
   const options = (sources.length ? sources : [
-    { id: "kokoro", name: "Kokoro", version: "kokoro-v1.0", recommended: true, size: "~336 MB", description: "Fast multi-voice speech, lighter setup", files: [], directory: "chirp-kokoro-models-kokoro-v1.0" },
-    { id: "qwen", name: "Qwen", version: "chirp-models-v0.1.3", recommended: false, size: "~900 MB", description: "Voice clone, multilingual, best on Mac GPU", files: [], directory: "chirp-models-q5_0" },
+    { id: "kokoro", name: "Kokoro", version: "kokoro-v1.0", recommended: true, size: "~336 MB", description: "Fast multi-voice speech, lighter setup", files: [], directory: "mamborambo-kokoro-models-kokoro-v1.0" },
+    { id: "qwen", name: "Qwen", version: "mamborambo-models-v0.1.3", recommended: false, size: "~900 MB", description: "Voice clone, multilingual, best on Mac GPU", files: [], directory: "mamborambo-models-q5_0" },
   ]) as ModelSource[];
 
   return (
@@ -179,7 +179,7 @@ export function OnboardPage({ bundle, setBundle }: PageProps) {
             <div className="flex flex-col gap-5 bg-background/10 p-6 sm:flex-row sm:items-center sm:justify-between">
               <div className="space-y-1">
                 <Eyebrow>Local Infrastructure</Eyebrow>
-                <h3 className="text-base font-semibold tracking-tight">{bundles[runtime]?.version ?? (runtime === "qwen" ? "chirp-v0.1.3-standard" : "kokoro-v1.0")}</h3>
+                <h3 className="text-base font-semibold tracking-tight">{bundles[runtime]?.version ?? (runtime === "qwen" ? "mamborambo-v0.1.3-standard" : "kokoro-v1.0")}</h3>
                 <p className="text-xs text-secondary opacity-40">
                   {bundles[runtime]?.installed ? "Already installed locally" : `Initial setup: ${runtime === "qwen" ? "~900MB" : "~336MB"} storage`}
                 </p>

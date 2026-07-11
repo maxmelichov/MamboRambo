@@ -10,13 +10,13 @@ use crate::{
 };
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
-const COMMIT: &str = match option_env!("CHIRP_COMMIT") {
+const COMMIT: &str = match option_env!("MAMBORAMBO_COMMIT") {
     Some(commit) => commit,
     None => "dev",
 };
 
 #[derive(Debug, Parser)]
-#[command(name = "chirp-server", version = VERSION, about = "Chirp local TTS server")]
+#[command(name = "mamborambo-server", version = VERSION, about = "MamboRambo local TTS server")]
 struct Args {
     #[command(subcommand)]
     command: Command,

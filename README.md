@@ -1,10 +1,10 @@
 <p align="center">
-  <a target="_blank" href="https://thewh1teagle.github.io/chirp/">
-    <img width="96" alt="Chirp logo" src="./chirp-desktop/src/assets/chirp-logo.svg" />
+  <a target="_blank" href="https://maxmelichov.github.io/MamboRambo/">
+    <img width="96" alt="MamboRambo logo" src="./mamborambo-desktop/src/assets/mamborambo-logo.svg" />
   </a>
 </p>
 
-<h1 align="center">Chirp</h1>
+<h1 align="center">MamboRambo</h1>
 
 <p align="center">
   <strong>Native offline Qwen3-TTS for desktop</strong>
@@ -12,18 +12,18 @@
 </p>
 
 <p align="center">
-  <a target="_blank" href="https://thewh1teagle.github.io/chirp/">
-    🔗 Download Chirp
+  <a target="_blank" href="https://maxmelichov.github.io/MamboRambo/">
+    🔗 Download MamboRambo
   </a>
   &nbsp; | &nbsp; Give it a Star ⭐ | &nbsp;
-  <a target="_blank" href="https://github.com/sponsors/thewh1teagle">Support the project 🤝</a>
+  <a target="_blank" href="https://github.com/sponsors/maxmelichov">Support the project 🤝</a>
 </p>
 
 <hr />
 
 <p align="center">
-  <a target="_blank" href="https://thewh1teagle.github.io/chirp/">
-    <img width="800" alt="Chirp desktop screenshot" src="https://github.com/user-attachments/assets/dc83a3a1-20f9-4825-9425-1f113c8a5321" />
+  <a target="_blank" href="https://maxmelichov.github.io/MamboRambo/">
+    <img width="800" alt="MamboRambo desktop screenshot" src="https://github.com/user-attachments/assets/dc83a3a1-20f9-4825-9425-1f113c8a5321" />
   </a>
 </p>
 

@@ -43,7 +43,7 @@ function App() {
         ]);
         if (cancelled) return;
 
-        const preferredRuntime = localStorage.getItem("chirp.runtime");
+        const preferredRuntime = localStorage.getItem("mamborambo.runtime");
         const current =
           preferredRuntime === "kokoro" && kokoro.installed
             ? kokoro

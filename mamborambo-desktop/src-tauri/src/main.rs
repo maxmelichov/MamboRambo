@@ -3,5 +3,5 @@
 
 #[tokio::main]
 async fn main() {
-    chirp_lib::run()
+    mamborambo_lib::run()
 }

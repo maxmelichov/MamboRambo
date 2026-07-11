@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "chirp",
+  "productName": "mamborambo",
   "version": "1.0.6",
-  "identifier": "com.thewh1teagle.chirp",
+  "identifier": "com.maxmelichov.mamborambo",
   "build": {
     "beforeDevCommand": "pnpm dev",
     "devUrl": "http://localhost:1420",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "chirp",
+        "title": "mamborambo",
         "width": 800,
         "height": 600
       }
@@ -40,7 +40,7 @@
       "icons/icon.ico"
     ],
     "externalBin": [
-      "binaries/chirp-server"
+      "binaries/mamborambo-server"
     ]
   }
 }

@@ -2,14 +2,14 @@
 
 ## Goal
 
-Create a standalone `chirp/runtime` project for Qwen3-TTS inference, separate from
-`llama.cpp/tools`, with no top-level `chirp/CMakeLists.txt`. The runtime builds
-directly from `chirp/runtime` and exposes a simple CLI plus a C API.
+Create a standalone `mamborambo/runtime` project for Qwen3-TTS inference, separate from
+`llama.cpp/tools`, with no top-level `mamborambo/CMakeLists.txt`. The runtime builds
+directly from `mamborambo/runtime` and exposes a simple CLI plus a C API.
 
 ## Repositories And Sources Used
 
 - Local workspace repo:
-  - `/home/yakov/Documents/audio/chirp`
+  - `/home/yakov/Documents/audio/mamborambo`
 - Qwen Python/reference implementation:
   - local folder `Qwen3-TTS/`
   - used for understanding prompt formatting, tokenizer behavior, model conversion,
@@ -45,7 +45,7 @@ directly from `chirp/runtime` and exposes a simple CLI plus a C API.
 ## Runtime Layout Created
 
 ```text
-chirp/
+mamborambo/
   .gitignore
   plans/
     runtime_standalone/
@@ -67,7 +67,7 @@ chirp/
       text/
 ```
 
-No CMake files were added at `chirp/` top level.
+No CMake files were added at `mamborambo/` top level.
 
 ## How Runtime Was Assembled
 
@@ -75,7 +75,7 @@ No CMake files were added at `chirp/` top level.
    - `llama.cpp/tools/qwen3-tts-v2`
 
 2. Copied v2 runtime sources into:
-   - `chirp/runtime/src`
+   - `mamborambo/runtime/src`
 
 3. Renamed the public API from v2-specific names to stable names:
    - `qwen3_tts_v2.h` -> `qwen3_tts.h`
@@ -89,8 +89,8 @@ No CMake files were added at `chirp/` top level.
    - `src/text/`: native Qwen text tokenizer added later.
 
 5. Copied converter scripts into:
-   - `chirp/runtime/scripts/convert_model_to_gguf.py`
-   - `chirp/runtime/scripts/convert_codec_to_gguf.py`
+   - `mamborambo/runtime/scripts/convert_model_to_gguf.py`
+   - `mamborambo/runtime/scripts/convert_codec_to_gguf.py`
 
 6. Removed `prepare_inputs.py` after porting both runtime input-preparation
    paths to C++:
@@ -99,7 +99,7 @@ No CMake files were added at `chirp/` top level.
 
 ## CMake Setup
 
-`chirp/runtime/CMakeLists.txt` is the standalone build entry point.
+`mamborambo/runtime/CMakeLists.txt` is the standalone build entry point.
 
 It uses `FetchContent` for llama.cpp:
 
@@ -148,7 +148,7 @@ FetchContent_Declare(
 The built executable is:
 
 ```text
-chirp-runtime
+mamborambo-runtime
 ```
 
 ## C API Added
@@ -156,7 +156,7 @@ chirp-runtime
 Public header:
 
 ```text
-chirp/runtime/src/qwen3_tts.h
+mamborambo/runtime/src/qwen3_tts.h
 ```
 
 Public functions:
@@ -194,12 +194,12 @@ Return convention:
 The CLI is a thin wrapper over the C API:
 
 ```console
-chirp/runtime/build/chirp-runtime \
+mamborambo/runtime/build/mamborambo-runtime \
   --model models/qwen3-tts-0.6b-f16.gguf \
   --codec models/qwen3-tts-tokenizer-f16.gguf \
   --text "hello" \
   --ref tmp/refs/female1.wav \
-  --output tmp/chirp_runtime.wav
+  --output tmp/mamborambo_runtime.wav
 ```
 
 `--ref` is optional. Without `--ref`, runtime does not invoke Python.
@@ -209,8 +209,8 @@ chirp/runtime/build/chirp-runtime \
 Native tokenizer added:
 
 ```text
-chirp/runtime/src/text/qwen_tokenizer.h
-chirp/runtime/src/text/qwen_tokenizer.cpp
+mamborambo/runtime/src/text/qwen_tokenizer.h
+mamborambo/runtime/src/text/qwen_tokenizer.cpp
 ```
 
 It reads tokenizer metadata embedded in the model GGUF:
@@ -233,7 +233,7 @@ Verified native token IDs matched Python for:
 
 - `hello`
 - `Hello from Qwen three TTS.`
-- `Standalone chirp runtime test.`
+- `Standalone mamborambo runtime test.`
 
 ## Python Dependency Status
 
@@ -257,8 +257,8 @@ inference.
 Native speaker/x-vector extraction added:
 
 ```text
-chirp/runtime/src/speaker/speaker_encoder.h
-chirp/runtime/src/speaker/speaker_encoder.cpp
+mamborambo/runtime/src/speaker/speaker_encoder.h
+mamborambo/runtime/src/speaker/speaker_encoder.cpp
 ```
 
 It loads the `spk_enc.*` tensors embedded in the model GGUF and implements the
@@ -297,8 +297,8 @@ resample_linear(...)
 Standalone runtime build:
 
 ```console
-cmake -S chirp/runtime -B chirp/runtime/build
-cmake --build chirp/runtime/build -j 8
+cmake -S mamborambo/runtime -B mamborambo/runtime/build
+cmake --build mamborambo/runtime/build -j 8
 ```
 
 This completed successfully.
@@ -308,12 +308,12 @@ This completed successfully.
 Standalone inference with reference voice:
 
 ```console
-chirp/runtime/build/chirp-runtime \
+mamborambo/runtime/build/mamborambo-runtime \
   --model models/qwen3-tts-0.6b-f16.gguf \
   --codec models/qwen3-tts-tokenizer-f16.gguf \
-  --text 'Standalone chirp runtime test.' \
+  --text 'Standalone mamborambo runtime test.' \
   --ref tmp/refs/female1.wav \
-  --output tmp/chirp_runtime_standalone.wav \
+  --output tmp/mamborambo_runtime_standalone.wav \
   --max-tokens 40 \
   --temperature 0 \
   --top-k 1
@@ -322,7 +322,7 @@ chirp/runtime/build/chirp-runtime \
 Generated:
 
 ```text
-/home/yakov/Documents/audio/chirp/tmp/chirp_runtime_standalone.wav
+/home/yakov/Documents/audio/mamborambo/tmp/mamborambo_runtime_standalone.wav
 ```
 
 Validation:
@@ -335,11 +335,11 @@ Validation:
 Native-tokenizer no-ref inference:
 
 ```console
-chirp/runtime/build/chirp-runtime \
+mamborambo/runtime/build/mamborambo-runtime \
   --model models/qwen3-tts-0.6b-f16.gguf \
   --codec models/qwen3-tts-tokenizer-f16.gguf \
   --text 'Native tokenizer test without python.' \
-  --output tmp/chirp_native_tokenizer_no_ref.wav \
+  --output tmp/mamborambo_native_tokenizer_no_ref.wav \
   --max-tokens 32 \
   --temperature 0 \
   --top-k 1
@@ -350,12 +350,12 @@ No Python output appeared for this no-ref path, confirming text preparation is n
 Native speaker-reference inference after removing `prepare_inputs.py`:
 
 ```console
-chirp/runtime/build/chirp-runtime \
+mamborambo/runtime/build/mamborambo-runtime \
   --model models/qwen3-tts-0.6b-f16.gguf \
   --codec models/qwen3-tts-tokenizer-f16.gguf \
-  --text 'Native speaker encoder is now running inside the chirp C plus plus runtime.' \
+  --text 'Native speaker encoder is now running inside the mamborambo C plus plus runtime.' \
   --ref tmp/refs/female1.wav \
-  --output tmp/chirp_native_speaker_runtime.wav \
+  --output tmp/mamborambo_native_speaker_runtime.wav \
   --max-tokens 48 \
   --temperature 0 \
   --top-k 1
@@ -364,7 +364,7 @@ chirp/runtime/build/chirp-runtime \
 Generated:
 
 ```text
-/home/yakov/Documents/audio/chirp/tmp/chirp_native_speaker_runtime.wav
+/home/yakov/Documents/audio/mamborambo/tmp/mamborambo_native_speaker_runtime.wav
 ```
 
 Validation:
@@ -380,12 +380,12 @@ Native speaker-reference inference after replacing custom FFT/resampling with
 `kissfft` and `libsoxr`:
 
 ```console
-chirp/runtime/build/chirp-runtime \
+mamborambo/runtime/build/mamborambo-runtime \
   --model models/qwen3-tts-0.6b-f16.gguf \
   --codec models/qwen3-tts-tokenizer-f16.gguf \
-  --text 'The chirp runtime now uses library based resampling and Fourier transforms.' \
+  --text 'The mamborambo runtime now uses library based resampling and Fourier transforms.' \
   --ref tmp/refs/female1.wav \
-  --output tmp/chirp_soxr_kissfft_runtime.wav \
+  --output tmp/mamborambo_soxr_kissfft_runtime.wav \
   --max-tokens 48 \
   --temperature 0 \
   --top-k 1
@@ -394,7 +394,7 @@ chirp/runtime/build/chirp-runtime \
 Generated:
 
 ```text
-/home/yakov/Documents/audio/chirp/tmp/chirp_soxr_kissfft_runtime.wav
+/home/yakov/Documents/audio/mamborambo/tmp/mamborambo_soxr_kissfft_runtime.wav
 ```
 
 Validation:
@@ -411,5 +411,5 @@ Validation:
 - `models/qwen3-tts-0.6b-f16.gguf` must include tokenizer metadata.
 - Current converter scripts already embed tokenizer metadata in the model GGUF.
 - The codec GGUF is separate and passed as `--codec`.
-- `chirp/.gitignore` ignores runtime build outputs, fetched deps, Python caches,
+- `mamborambo/.gitignore` ignores runtime build outputs, fetched deps, Python caches,
   and generated audio/code/token artifacts.

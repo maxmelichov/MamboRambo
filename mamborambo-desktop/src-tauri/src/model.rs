@@ -11,17 +11,17 @@ use tokio::io::AsyncWriteExt;
 
 use crate::analytics;
 
-const MODELS_TAG: &str = "chirp-models-v0.1.3";
-const MODEL_DIR: &str = "chirp-models-q5_0";
+const MODELS_TAG: &str = "mamborambo-models-v0.1.3";
+const MODEL_DIR: &str = "mamborambo-models-q5_0";
 const MODEL_FILE: &str = "qwen3-tts-model.gguf";
 const CODEC_FILE: &str = "qwen3-tts-codec.gguf";
 const MODEL_BASE_URL: &str = "https://huggingface.co/thewh1teagle/qwen3-tts-gguf/resolve/main";
 const KOKORO_MODELS_TAG: &str = "kokoro-v1.0";
-const KOKORO_MODEL_DIR: &str = "chirp-kokoro-models-kokoro-v1.0";
+const KOKORO_MODEL_DIR: &str = "mamborambo-kokoro-models-kokoro-v1.0";
 const KOKORO_MODEL_FILE: &str = "kokoro-v1.0.onnx";
 const KOKORO_VOICES_FILE: &str = "voices-v1.0.bin";
 const KOKORO_ESPEAK_DIR: &str = "espeak-ng-data";
-const KOKORO_BUNDLE_URL: &str = "https://huggingface.co/thewh1teagle/chirp-kokoro-models/resolve/main/chirp-kokoro-models-kokoro-v1.0.tar.gz";
+const KOKORO_BUNDLE_URL: &str = "https://huggingface.co/maxmelichov/MamboRambo-kokoro-models/resolve/main/mamborambo-kokoro-models-kokoro-v1.0.tar.gz";
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ModelBundle {
@@ -274,11 +274,11 @@ fn model_sources() -> ModelSources {
                 directory: KOKORO_MODEL_DIR.to_string(),
             },
         ],
-        voices_url: "https://raw.githubusercontent.com/thewh1teagle/chirp/main/chirp-desktop/src/assets/voices.json".to_string(),
+        voices_url: "https://raw.githubusercontent.com/maxmelichov/MamboRambo/main/mamborambo-desktop/src/assets/voices.json".to_string(),
         default_paths: vec![
-            "macOS: ~/Library/Application Support/com.thewh1teagle.chirp/models".to_string(),
-            "Windows: %LOCALAPPDATA%\\com.thewh1teagle.chirp\\models".to_string(),
-            "Linux: ~/.local/share/com.thewh1teagle.chirp/models".to_string(),
+            "macOS: ~/Library/Application Support/com.maxmelichov.mamborambo/models".to_string(),
+            "Windows: %LOCALAPPDATA%\\com.maxmelichov.mamborambo\\models".to_string(),
+            "Linux: ~/.local/share/com.maxmelichov.mamborambo/models".to_string(),
         ],
     }
 }
@@ -303,7 +303,7 @@ async fn download_kokoro_bundle(app: tauri::AppHandle) -> Result<ModelBundle, St
     tokio::fs::create_dir_all(&models_root)
         .await
         .map_err(|err| format!("failed to create {}: {err}", models_root.display()))?;
-    let archive_path = models_root.join("chirp-kokoro-models-kokoro-v1.0.tar.gz.part");
+    let archive_path = models_root.join("mamborambo-kokoro-models-kokoro-v1.0.tar.gz.part");
     let client = reqwest::Client::builder()
         .no_proxy()
         .build()

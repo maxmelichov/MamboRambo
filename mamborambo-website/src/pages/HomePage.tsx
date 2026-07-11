@@ -1,4 +1,4 @@
-import chirpLogo from "@/assets/chirp-logo.svg"
+import mamboramboLogo from "@/assets/mamborambo-logo.svg"
 import { DownloadCta } from "@/components/DownloadCta"
 import { SiteFooter } from "@/components/SiteFooter"
 import { SiteHeader } from "@/components/SiteHeader"
@@ -16,7 +16,7 @@ export function HomePage() {
         {/* Refined, Elegant Hero */}
         <section className="mx-auto flex w-full max-w-5xl flex-col items-center px-4 pt-8 pb-8 text-center sm:px-6 sm:pt-12 sm:pb-12">
           <div className="mb-4 transition-transform hover:scale-110 duration-500">
-            <img src={chirpLogo} alt="" className="size-20 object-contain" />
+            <img src={mamboramboLogo} alt="" className="size-20 object-contain" />
           </div>
           
           <h1 className="max-w-4xl text-5xl font-bold tracking-tight text-balance text-foreground sm:text-6xl md:text-7xl">
@@ -24,7 +24,7 @@ export function HomePage() {
           </h1>
           
           <p className="mt-5 max-w-2xl text-lg leading-relaxed text-muted-foreground sm:text-xl">
-            Chirp runs locally, generates natural speech, and keeps your audio workflow on your machine.
+            MamboRambo runs locally, generates natural speech, and keeps your audio workflow on your machine.
           </p>
 
           <div className="mt-6 w-full flex justify-center">

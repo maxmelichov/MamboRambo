@@ -62,7 +62,7 @@ pub async fn model_load(
 
 fn set_default_runtime(body: &mut LoadBody) {
     if body.runtime.is_empty() {
-        body.runtime = std::env::var("CHIRP_RUNTIME").unwrap_or_default();
+        body.runtime = std::env::var("MAMBORAMBO_RUNTIME").unwrap_or_default();
     }
     if body.runtime.is_empty() && !body.kokoro.model_path.is_empty() {
         body.runtime = "kokoro".into();
@@ -79,12 +79,12 @@ fn qwen_load_params(body: LoadBody) -> Result<LoadParams, &'static str> {
     let model_path = first_non_empty([
         body.qwen.model_path,
         body.model_path,
-        std::env::var("CHIRP_MODEL_PATH").unwrap_or_default(),
+        std::env::var("MAMBORAMBO_MODEL_PATH").unwrap_or_default(),
     ]);
     let codec_path = first_non_empty([
         body.qwen.codec_path,
         body.codec_path,
-        std::env::var("CHIRP_CODEC_PATH").unwrap_or_default(),
+        std::env::var("MAMBORAMBO_CODEC_PATH").unwrap_or_default(),
     ]);
     if model_path.is_empty() || codec_path.is_empty() {
         return Err("qwen runtime requires model_path and codec_path");
@@ -105,11 +105,11 @@ fn qwen_load_params(body: LoadBody) -> Result<LoadParams, &'static str> {
 fn kokoro_load_params(body: LoadBody) -> Result<LoadParams, &'static str> {
     let model_path = first_non_empty([
         body.kokoro.model_path,
-        std::env::var("CHIRP_KOKORO_MODEL_PATH").unwrap_or_default(),
+        std::env::var("MAMBORAMBO_KOKORO_MODEL_PATH").unwrap_or_default(),
     ]);
     let voices_path = first_non_empty([
         body.kokoro.voices_path,
-        std::env::var("CHIRP_KOKORO_VOICES_PATH").unwrap_or_default(),
+        std::env::var("MAMBORAMBO_KOKORO_VOICES_PATH").unwrap_or_default(),
     ]);
     if model_path.is_empty() || voices_path.is_empty() {
         return Err("kokoro runtime requires model_path and voices_path");

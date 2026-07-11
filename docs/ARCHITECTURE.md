@@ -1,6 +1,6 @@
 # Architecture
 
-Chirp is split into three layers: runtime crates, a Rust HTTP sidecar, and the Tauri desktop app.
+MamboRambo is split into three layers: runtime crates, a Rust HTTP sidecar, and the Tauri desktop app.
 
 ## Runtime Crates
 
@@ -14,26 +14,26 @@ The old top-level `runtimes/` tree is no longer part of the build.
 
 ## Server
 
-`chirp-server/` is the local CLI and HTTP service. Its binary is named `chirp-server`.
+`mamborambo-server/` is the local CLI and HTTP service. Its binary is named `mamborambo-server`.
 
 Responsibilities:
 
-- Provide `chirp-server speak` for command-line synthesis.
-- Provide `chirp-server serve` for local HTTP usage.
+- Provide `mamborambo-server speak` for command-line synthesis.
+- Provide `mamborambo-server serve` for local HTTP usage.
 - Own model loading, runtime selection, request validation, and response formatting.
 - Expose the local API used by the desktop app.
 
-The desktop starts `chirp-server` as a sidecar subprocess and reads its ready signal from stdout.
+The desktop starts `mamborambo-server` as a sidecar subprocess and reads its ready signal from stdout.
 
 ## Desktop
 
-`chirp-desktop/` is the Tauri + React app.
+`mamborambo-desktop/` is the Tauri + React app.
 
 Responsibilities:
 
 - Own the user interface.
 - Download and locate model bundles.
-- Start and stop the `chirp-server` sidecar.
+- Start and stop the `mamborambo-server` sidecar.
 - Call the local HTTP API for model loading, language/voice metadata, and synthesis.
 
 The desktop does not link directly to model runtimes.
@@ -58,12 +58,12 @@ Kokoro bundles contain:
 Typical release order:
 
 1. Publish model bundles when model files change.
-2. Build and release `chirp-server` sidecars with `chirp-server-v*` tags.
-3. Build desktop packages that bundle the matching `chirp-server` sidecar.
+2. Build and release `mamborambo-server` sidecars with `mamborambo-server-v*` tags.
+3. Build desktop packages that bundle the matching `mamborambo-server` sidecar.
 
 Server release artifacts:
 
-- `chirp-server-darwin-arm64.tar.gz`
-- `chirp-server-linux-x64.tar.gz`
-- `chirp-server-linux-arm64.tar.gz`
-- `chirp-server-windows-x64.zip`
+- `mamborambo-server-darwin-arm64.tar.gz`
+- `mamborambo-server-linux-x64.tar.gz`
+- `mamborambo-server-linux-arm64.tar.gz`
+- `mamborambo-server-windows-x64.zip`

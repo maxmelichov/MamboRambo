@@ -1,18 +1,18 @@
-# Chirp Agent Skill
+# MamboRambo Agent Skill
 
-Use Chirp when you need local, offline text-to-speech with optional voice cloning. Chirp provides a small native server that can create WAV files from text using Qwen3-TTS.
+Use MamboRambo when you need local, offline text-to-speech with optional voice cloning. MamboRambo provides a small native server that can create WAV files from text using Qwen3-TTS.
 
 ## Requirements
 
-- A platform server from the `chirp-server` release.
-- The model bundle from the `chirp-models` release.
+- A platform server from the `mamborambo-server` release.
+- The model bundle from the `mamborambo-models` release.
 - Local filesystem access to the model GGUF, codec GGUF, output path, and optional reference WAV.
 
 Recommended versions:
 
 ```console
-chirp-server-v0.2.0
-chirp-models-v0.1.3
+mamborambo-server-v0.2.0
+mamborambo-models-v0.1.3
 ```
 
 ## Install
@@ -20,16 +20,16 @@ chirp-models-v0.1.3
 Download the server for the current platform:
 
 ```console
-wget https://github.com/thewh1teagle/chirp/releases/download/chirp-server-v0.2.0/chirp-server-darwin-arm64.tar.gz
-tar -xzf chirp-server-darwin-arm64.tar.gz
+wget https://github.com/maxmelichov/MamboRambo/releases/download/mamborambo-server-v0.2.0/mamborambo-server-darwin-arm64.tar.gz
+tar -xzf mamborambo-server-darwin-arm64.tar.gz
 ```
 
 Download the models once:
 
 ```console
-wget https://github.com/thewh1teagle/chirp/releases/download/chirp-models-v0.1.3/chirp-models-q5_0.tar.gz
+wget https://github.com/maxmelichov/MamboRambo/releases/download/mamborambo-models-v0.1.3/mamborambo-models-q5_0.tar.gz
 mkdir -p models
-tar -xzf chirp-models-q5_0.tar.gz -C models
+tar -xzf mamborambo-models-q5_0.tar.gz -C models
 ```
 
 Expected model files:
@@ -46,7 +46,7 @@ If filenames differ, inspect the extracted model directory and pass the actual G
 Before creating speech, list supported language names:
 
 ```console
-./chirp-server-darwin-arm64/chirp-server languages \
+./mamborambo-server-darwin-arm64/mamborambo-server languages \
   --model models/qwen3-tts-0.6b-q5_0.gguf \
   --codec models/qwen3-tts-tokenizer-q5_0.gguf
 ```
@@ -74,10 +74,10 @@ Use `auto` when unsure.
 Use the CLI for one-shot generation:
 
 ```console
-./chirp-server-darwin-arm64/chirp-server speak \
+./mamborambo-server-darwin-arm64/mamborambo-server speak \
   --model models/qwen3-tts-0.6b-q5_0.gguf \
   --codec models/qwen3-tts-tokenizer-q5_0.gguf \
-  --text "Hello from Chirp." \
+  --text "Hello from MamboRambo." \
   --language english \
   --output output.wav
 ```
@@ -85,7 +85,7 @@ Use the CLI for one-shot generation:
 For voice cloning, pass a reference WAV:
 
 ```console
-./chirp-server-darwin-arm64/chirp-server speak \
+./mamborambo-server-darwin-arm64/mamborambo-server speak \
   --model models/qwen3-tts-0.6b-q5_0.gguf \
   --codec models/qwen3-tts-tokenizer-q5_0.gguf \
   --text "Hello with a reference voice." \
@@ -101,7 +101,7 @@ The output is a WAV file.
 Bundled voice presets are listed at:
 
 ```console
-https://raw.githubusercontent.com/thewh1teagle/chirp/main/chirp-desktop/src/assets/voices.json
+https://raw.githubusercontent.com/maxmelichov/MamboRambo/main/mamborambo-desktop/src/assets/voices.json
 ```
 
 Each entry includes an `id`, `name`, `description`, `language`, and `url`. Download the preset WAV from `url`, then pass the downloaded local file path as `voice_reference`.
@@ -111,7 +111,7 @@ Each entry includes an `id`, `name`, `description`, `language`, and `url`. Downl
 Use the server for repeated requests because it keeps the model loaded:
 
 ```console
-./chirp-server-darwin-arm64/chirp-server serve \
+./mamborambo-server-darwin-arm64/mamborambo-server serve \
   --host 127.0.0.1 \
   --port 8080 \
   --model models/qwen3-tts-0.6b-q5_0.gguf \

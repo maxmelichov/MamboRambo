@@ -11,8 +11,8 @@ node_modules
 dist
 dist-ssr
 *.local
-src-tauri/binaries/chirp-*
-src-tauri/binaries/chirp-runner-*
+src-tauri/binaries/mamborambo-*
+src-tauri/binaries/mamborambo-runner-*
 
 # Editor directories and files
 .vscode/*

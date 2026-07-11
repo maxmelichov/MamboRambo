@@ -111,9 +111,9 @@ monthly signing limit.
 
 ### What gets signed
 
-- `chirp.exe` (main app)
-- `chirp*setup*.exe` (NSIS installer)
-- `chirp-server*.exe` (bundled server sidecar)
+- `mamborambo.exe` (main app)
+- `mamborambo*setup*.exe` (NSIS installer)
+- `mamborambo-server*.exe` (bundled server sidecar)
 
 ### What gets skipped
 
@@ -125,7 +125,7 @@ Set `SIGN_ENABLED=true` to actually sign.
 
 ### Tauri configuration
 
-In `chirp-desktop/src-tauri/tauri.windows.conf.json`:
+In `mamborambo-desktop/src-tauri/tauri.windows.conf.json`:
 
 ```json
 {

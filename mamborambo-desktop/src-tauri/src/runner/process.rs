@@ -28,19 +28,19 @@ impl RunnerProcess {
             .stderr(Stdio::piped());
         if let Ok(bundle) = model::model_bundle(app) {
             if bundle.installed {
-                cmd.env("CHIRP_RUNTIME", &bundle.runtime);
-                cmd.env("CHIRP_MODEL_PATH", &bundle.model_path);
+                cmd.env("MAMBORAMBO_RUNTIME", &bundle.runtime);
+                cmd.env("MAMBORAMBO_MODEL_PATH", &bundle.model_path);
                 if bundle.runtime == "kokoro" {
-                    cmd.env("CHIRP_KOKORO_MODEL_PATH", &bundle.model_path);
+                    cmd.env("MAMBORAMBO_KOKORO_MODEL_PATH", &bundle.model_path);
                 }
                 if !bundle.codec_path.is_empty() {
-                    cmd.env("CHIRP_CODEC_PATH", &bundle.codec_path);
+                    cmd.env("MAMBORAMBO_CODEC_PATH", &bundle.codec_path);
                 }
                 if let Some(path) = &bundle.voices_path {
-                    cmd.env("CHIRP_KOKORO_VOICES_PATH", path);
+                    cmd.env("MAMBORAMBO_KOKORO_VOICES_PATH", path);
                 }
                 if let Some(path) = &bundle.espeak_data_path {
-                    cmd.env("CHIRP_ESPEAK_DATA_PATH", path);
+                    cmd.env("MAMBORAMBO_ESPEAK_DATA_PATH", path);
                 }
             }
         }
@@ -53,7 +53,7 @@ impl RunnerProcess {
 
         let mut child = cmd.spawn().map_err(|err| {
             format!(
-                "failed to spawn Chirp server at {}: {err}",
+                "failed to spawn MamboRambo server at {}: {err}",
                 binary_path.display()
             )
         })?;
@@ -62,7 +62,7 @@ impl RunnerProcess {
         let stdout = child
             .stdout
             .take()
-            .ok_or_else(|| "failed to capture Chirp server stdout".to_string())?;
+            .ok_or_else(|| "failed to capture MamboRambo server stdout".to_string())?;
         let mut reader = std::io::BufReader::new(stdout);
         let mut line = String::new();
 
@@ -90,7 +90,7 @@ impl RunnerProcess {
         };
         if signal.status != "ready" {
             kill_child(&mut child);
-            return Err(format!("unexpected Chirp server status: {}", signal.status));
+            return Err(format!("unexpected MamboRambo server status: {}", signal.status));
         }
 
         let client = match reqwest::Client::builder().no_proxy().build() {

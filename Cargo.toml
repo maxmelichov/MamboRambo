@@ -1,7 +1,7 @@
 [workspace]
 members = [
-    "chirp-desktop/src-tauri",
-    "chirp-server",
+    "mamborambo-desktop/src-tauri",
+    "mamborambo-server",
     "crates/espeak-rs",
     "crates/espeak-rs-sys",
     "crates/ggml-rs-sys",

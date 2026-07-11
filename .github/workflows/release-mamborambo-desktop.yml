@@ -1,4 +1,4 @@
-name: release chirp-desktop
+name: release mamborambo-desktop
 
 on:
   workflow_dispatch:
@@ -41,14 +41,14 @@ jobs:
         uses: pnpm/action-setup@v4
         with:
           version: 10.15.1
-          package_json_file: chirp-desktop/package.json
+          package_json_file: mamborambo-desktop/package.json
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
-          cache-dependency-path: chirp-desktop/pnpm-lock.yaml
+          cache-dependency-path: mamborambo-desktop/pnpm-lock.yaml
 
       - name: Setup uv
         uses: astral-sh/setup-uv@v5
@@ -61,7 +61,7 @@ jobs:
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
-          workspaces: chirp-desktop/src-tauri
+          workspaces: mamborambo-desktop/src-tauri
 
       - name: Install Linux Tauri dependencies
         if: runner.os == 'Linux'
@@ -75,7 +75,7 @@ jobs:
 
       - name: Install frontend dependencies
         run: pnpm install
-        working-directory: chirp-desktop
+        working-directory: mamborambo-desktop
 
       - name: Build server sidecar
         run: uv run scripts/pre_build.py --target ${{ matrix.target }}
@@ -91,11 +91,11 @@ jobs:
           SIGN_TUNNEL_URL: ${{ secrets.SIGN_TUNNEL_URL }}
           SIGN_TUNNEL_SECRET: ${{ secrets.SIGN_TUNNEL_SECRET }}
         with:
-          tagName: chirp-desktop-v__VERSION__
-          releaseName: chirp desktop v__VERSION__
-          releaseBody: "Chirp desktop build."
+          tagName: mamborambo-desktop-v__VERSION__
+          releaseName: mamborambo desktop v__VERSION__
+          releaseBody: "MamboRambo desktop build."
           prerelease: true
-          projectPath: chirp-desktop
+          projectPath: mamborambo-desktop
           tauriScript: pnpm exec tauri
           args: ${{ matrix.args }}
 
@@ -113,10 +113,10 @@ jobs:
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
-          tagName: chirp-desktop-v__VERSION__
-          releaseName: chirp desktop v__VERSION__
-          releaseBody: "Chirp desktop build."
+          tagName: mamborambo-desktop-v__VERSION__
+          releaseName: mamborambo desktop v__VERSION__
+          releaseBody: "MamboRambo desktop build."
           prerelease: true
-          projectPath: chirp-desktop
+          projectPath: mamborambo-desktop
           tauriScript: pnpm exec tauri
           args: ${{ matrix.args }}

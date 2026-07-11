@@ -1,19 +1,19 @@
 #!/bin/sh
 
-# Linux installer for Chirp
+# Linux installer for MamboRambo
 # Supports Debian / Ubuntu with DEB packages
 # Accepts tag in the first argument
 
 # Usage:
 # ./installer.sh {tag}
 
-# Available at https://thewh1teagle.github.io/chirp/installer.sh
-# Via curl -sSf https://thewh1teagle.github.io/chirp/installer.sh | sh -s {tag}
+# Available at https://maxmelichov.github.io/MamboRambo/installer.sh
+# Via curl -sSf https://maxmelichov.github.io/MamboRambo/installer.sh | sh -s {tag}
 
 set -e
 
 TAG=$1
-VERSION=$(echo "$TAG" | sed 's/^chirp-desktop-v//; s/^v//')
+VERSION=$(echo "$TAG" | sed 's/^mamborambo-desktop-v//; s/^v//')
 
 if [ -z "$TAG" ]; then
     echo "Error: No tag specified. Usage: ./installer.sh {tag}"
@@ -28,17 +28,17 @@ fi
 
 DEB_ARCH="amd64"
 
-DEB_URL="https://github.com/thewh1teagle/chirp/releases/download/${TAG}/chirp_${VERSION}_${DEB_ARCH}.deb"
+DEB_URL="https://github.com/maxmelichov/MamboRambo/releases/download/${TAG}/mamborambo_${VERSION}_${DEB_ARCH}.deb"
 
-echo "Downloading Chirp version $TAG for $ARCH..."
+echo "Downloading MamboRambo version $TAG for $ARCH..."
 
 TEMP_DIR=$(mktemp -d)
 cd "$TEMP_DIR"
 
 if [ -f /etc/os-release ] && grep -iq "ubuntu\|debian" /etc/os-release; then
     echo "Detected Debian/Ubuntu. Downloading DEB package..."
-    wget "$DEB_URL" -O chirp.deb
-    sudo apt-get install -y ./chirp.deb
+    wget "$DEB_URL" -O mamborambo.deb
+    sudo apt-get install -y ./mamborambo.deb
 else
     echo "Unsupported Linux distribution. Please install the DEB package manually:"
     echo "$DEB_URL"
@@ -48,5 +48,5 @@ fi
 cd ..
 rm -rf "$TEMP_DIR"
 
-echo "Chirp installation complete!"
-echo "Run 'chirp' to open it!"
+echo "MamboRambo installation complete!"
+echo "Run 'mamborambo' to open it!"

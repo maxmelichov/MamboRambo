@@ -12,7 +12,7 @@ import { detectPlatform, isMobileDevice, type Platform, platformLabels } from "@
 import { cn } from "@/lib/utils"
 
 const latestRelease = latestReleaseJson as LatestRelease
-const installCommand = `curl -sSf https://thewh1teagle.github.io/chirp/installer.sh | sh -s ${latestRelease.version}`
+const installCommand = `curl -sSf https://maxmelichov.github.io/MamboRambo/installer.sh | sh -s ${latestRelease.version}`
 
 function preferredAsset(platform: Platform): ReleaseAsset | undefined {
   const assets = latestRelease.assets.filter((asset) => asset.platform === platform)

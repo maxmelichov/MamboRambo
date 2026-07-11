@@ -9,9 +9,9 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
-RELEASES_PATH = ROOT / "chirp-website" / "src" / "lib" / "latest_release.json"
-REPO = "thewh1teagle/chirp"
-DESKTOP_TAG_RE = re.compile(r"^chirp-desktop-v")
+RELEASES_PATH = ROOT / "mamborambo-website" / "src" / "lib" / "latest_release.json"
+REPO = "maxmelichov/MamboRambo"
+DESKTOP_TAG_RE = re.compile(r"^mamborambo-desktop-v")
 
 
 def gh_json(*args: str) -> Any:
@@ -47,7 +47,7 @@ def latest_desktop_release() -> dict[str, Any]:
                 "--json",
                 "tagName,publishedAt,isPrerelease,url,assets",
             )
-    raise RuntimeError("No chirp-desktop-v* release found")
+    raise RuntimeError("No mamborambo-desktop-v* release found")
 
 
 def asset_info(name: str) -> dict[str, str] | None:

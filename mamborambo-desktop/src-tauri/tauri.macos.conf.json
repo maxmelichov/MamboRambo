@@ -1,6 +1,6 @@
 {
   "bundle": {
-    "externalBin": ["binaries/chirp-server"],
+    "externalBin": ["binaries/mamborambo-server"],
     "macOS": {
       "entitlements": "entitlements.plist",
       "hardenedRuntime": true
