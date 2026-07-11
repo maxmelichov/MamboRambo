@@ -6,6 +6,10 @@ use ort::session::Session;
 use regex::Regex;
 use renikud_rs::G2P;
 
+use crate::handling::{
+    NikudPhonemizer, PlainHebrewPhonemizer, contains_nikud, phonemize_nikud_word, strip_nikud,
+};
+
 /// Languages supported by the BlueTTS model.
 ///
 /// Codes:
@@ -64,6 +68,11 @@ pub struct Phonemizer {
     hebrew: Option<G2P>,
     language: Language,
     latin_re: Regex,
+    /// Optional Phonikud (or compatible) engine for niqqud → IPA.
+    ///
+    /// When set, vocalized words keep niqqud for Phonikud, are stripped for
+    /// Renikud, then Phonikud stress is transferred onto Renikud IPA.
+    nikud: Option<Box<dyn NikudPhonemizer + Send>>,
 }
 
 impl Phonemizer {
@@ -94,6 +103,7 @@ impl Phonemizer {
             hebrew,
             language,
             latin_re: Regex::new(r"[A-Za-z]+(?:['-][A-Za-z]+)*")?,
+            nikud: None,
         })
     }
 
@@ -108,7 +118,20 @@ impl Phonemizer {
             hebrew: Some(G2P::from_session(session)?),
             language,
             latin_re: Regex::new(r"[A-Za-z]+(?:['-][A-Za-z]+)*")?,
+            nikud: None,
         })
+    }
+
+    /// Attach a Phonikud-compatible engine for niqqud-bearing Hebrew words.
+    ///
+    /// Niqqud is **not** stripped before this engine. Renikud still receives
+    /// the stripped form, and Phonikud stress is placed onto Renikud IPA.
+    pub fn with_nikud_phonemizer(
+        mut self,
+        nikud: impl NikudPhonemizer + Send + 'static,
+    ) -> Self {
+        self.nikud = Some(Box::new(nikud));
+        self
     }
 
     /// Phonemize text using the default language.
@@ -176,10 +199,90 @@ impl Phonemizer {
             return Ok(text.to_string());
         }
 
+        if contains_nikud(text) && self.nikud.is_some() {
+            return self.phonemize_hebrew_with_nikud(text);
+        }
+
+        // Renikud expects plain Hebrew — strip niqqud when Phonikud is absent.
+        let plain = if contains_nikud(text) {
+            strip_nikud(text)
+        } else {
+            text.to_owned()
+        };
+        self.phonemize_renikud(&plain)
+    }
+
+    /// Word-level hybrid path: Phonikud(keep niqqud) + Renikud(strip) + stress merge.
+    fn phonemize_hebrew_with_nikud(&mut self, text: &str) -> Result<String> {
+        let mut output = String::with_capacity(text.len());
+        let mut word = String::new();
+
+        for character in text.chars() {
+            if is_hebrew_word_character(character) {
+                word.push(character);
+                continue;
+            }
+            self.flush_hebrew_word(&mut word, &mut output)?;
+            output.push(character);
+        }
+        self.flush_hebrew_word(&mut word, &mut output)?;
+        Ok(output)
+    }
+
+    fn flush_hebrew_word(&mut self, word: &mut String, output: &mut String) -> Result<()> {
+        if word.is_empty() {
+            return Ok(());
+        }
+
+        if contains_nikud(word) {
+            // Temporarily take the nikud engine so Renikud can be borrowed too.
+            let mut nikud = self
+                .nikud
+                .take()
+                .ok_or_else(|| anyhow!("niqqud phonemizer missing"))?;
+            let has_renikud = self.hebrew.is_some();
+            let span = if has_renikud {
+                let mut renikud_adapter = RenikudAdapter {
+                    g2p: self.hebrew.as_mut(),
+                };
+                phonemize_nikud_word(
+                    word,
+                    nikud.as_mut(),
+                    Some(&mut renikud_adapter as &mut dyn PlainHebrewPhonemizer),
+                )
+            } else {
+                phonemize_nikud_word(word, nikud.as_mut(), None)
+            };
+            self.nikud = Some(nikud);
+            output.push_str(&span?.ipa);
+        } else if word.chars().any(|c| ('\u{0590}'..='\u{05ff}').contains(&c)) {
+            output.push_str(&self.phonemize_renikud(word)?);
+        } else {
+            output.push_str(word);
+        }
+        word.clear();
+        Ok(())
+    }
+
+    fn phonemize_renikud(&mut self, text: &str) -> Result<String> {
         let Some(g2p) = self.hebrew.as_mut() else {
             bail!("Hebrew phonemization needs a Renikud model path");
         };
         g2p.phonemize(text)
+    }
+}
+
+/// Thin adapter so Renikud `G2P` satisfies [`PlainHebrewPhonemizer`].
+struct RenikudAdapter<'a> {
+    g2p: Option<&'a mut G2P>,
+}
+
+impl PlainHebrewPhonemizer for RenikudAdapter<'_> {
+    fn phonemize_plain(&mut self, unvocalized: &str) -> Result<String> {
+        let Some(g2p) = self.g2p.as_mut() else {
+            bail!("Hebrew phonemization needs a Renikud model path");
+        };
+        g2p.phonemize(unvocalized)
     }
 }
 
@@ -190,6 +293,12 @@ pub fn phonemize(text: &str, renikud_model: Option<impl AsRef<Path>>) -> Result<
 
 fn contains_hebrew(text: &str) -> bool {
     text.chars().any(|c| ('\u{0590}'..='\u{05ff}').contains(&c))
+}
+
+fn is_hebrew_word_character(character: char) -> bool {
+    ('\u{05d0}'..='\u{05ea}').contains(&character)
+        || ('\u{0591}'..='\u{05c7}').contains(&character)
+        || matches!(character, '׳' | '״' | '|')
 }
 
 fn normalize_spaces(text: &str) -> String {
