@@ -1,7 +1,7 @@
 {
   "version": "mamborambo-desktop-v1.0.7",
   "url": "https://github.com/maxmelichov/MamboRambo/releases/tag/mamborambo-desktop-v1.0.7",
-  "publishedAt": "2026-07-11T20:20:00Z",
+  "publishedAt": "2026-07-12T19:26:04Z",
   "assets": [
     {
       "url": "https://github.com/maxmelichov/MamboRambo/releases/download/mamborambo-desktop-v1.0.7/MamboRambo_1.0.7_aarch64.dmg",
@@ -23,6 +23,20 @@
       "platform": "linux",
       "arch": "linux-x86_64",
       "kind": "rpm"
+    },
+    {
+      "url": "https://github.com/maxmelichov/MamboRambo/releases/download/mamborambo-desktop-v1.0.7/MamboRambo_1.0.7_x64-setup.exe",
+      "name": "MamboRambo_1.0.7_x64-setup.exe",
+      "platform": "windows",
+      "arch": "windows-x86_64",
+      "kind": "exe"
+    },
+    {
+      "url": "https://github.com/maxmelichov/MamboRambo/releases/download/mamborambo-desktop-v1.0.7/MamboRambo_1.0.7_x64_en-US.msi",
+      "name": "MamboRambo_1.0.7_x64_en-US.msi",
+      "platform": "windows",
+      "arch": "windows-x86_64",
+      "kind": "msi"
     }
   ]
 }
