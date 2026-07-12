@@ -175,6 +175,9 @@ def main() -> int:
         build_env["RUSTFLAGS"] = f"{rustflags} -L native={lib_dir}".strip()
     if is_macos:
         build_env["RUSTFLAGS"] = f"{build_env.get('RUSTFLAGS', '')} -C link-arg=-Wl,-headerpad_max_install_names".strip()
+    if is_windows:
+        # espeak-ng pulls registry APIs that need advapi32 on MSVC.
+        build_env["RUSTFLAGS"] = f"{build_env.get('RUSTFLAGS', '')} -C link-arg=advapi32.lib".strip()
     subprocess.run(cmd, cwd=ROOT, env=build_env, check=True)
 
     source = ROOT / "target" / target / args.profile / ("mamborambo-server.exe" if is_windows else "mamborambo-server")

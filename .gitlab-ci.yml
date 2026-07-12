@@ -66,7 +66,7 @@ windows:desktop:
       Get-Command pnpm, uv, rustc, cmake | Format-Table Name, Source
       pnpm --dir mamborambo-desktop install --frozen-lockfile
       uv run scripts/pre_build.py --target x86_64-pc-windows-msvc
-      pnpm --dir mamborambo-desktop exec tauri build --target x86_64-pc-windows-msvc --bundles nsis,msi
+      pnpm --dir mamborambo-desktop exec tauri build --target x86_64-pc-windows-msvc --bundles nsis --bundles msi
   artifacts:
     name: "mamborambo-windows-$CI_COMMIT_SHORT_SHA"
     paths:
