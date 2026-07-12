@@ -188,7 +188,11 @@ def main() -> int:
     install_ort_libs(target, dest_dir)
 
     if is_macos:
-        for rpath in ("@loader_path", "@loader_path/../Resources"):
+        for rpath in (
+            "@loader_path",
+            "@loader_path/../Resources",
+            "@loader_path/../Resources/binaries",
+        ):
             subprocess.run(
                 ["install_name_tool", "-add_rpath", rpath, str(dest)],
                 check=False,

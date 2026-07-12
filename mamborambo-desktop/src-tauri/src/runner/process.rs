@@ -188,6 +188,7 @@ fn prepend_native_library_paths(cmd: &mut Command, app: &tauri::AppHandle, binar
         dirs.push(parent.to_path_buf());
     }
     if let Ok(resource_dir) = app.path().resource_dir() {
+        dirs.push(resource_dir.join("binaries"));
         dirs.push(resource_dir);
     }
     dirs.retain(|dir| dir.exists());

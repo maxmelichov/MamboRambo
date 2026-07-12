@@ -1,0 +1,119 @@
+# Build MamboRambo desktop installers on GitLab.
+# Run from CI/CD → Pipelines → Run pipeline (web), or manually on main.
+# After jobs finish, download artifacts and upload to GitHub Releases.
+
+stages:
+  - build
+
+variables:
+  PNPM_VERSION: "10.15.1"
+  CARGO_TERM_COLOR: always
+  ORT_STRATEGY: system
+  ORT_PREFER_DYNAMIC_LINK: "1"
+  SIGN_ENABLED: "false"
+  APPIMAGE_EXTRACT_AND_RUN: "1"
+  NO_STRIP: "true"
+  FF_USE_POWERSHELL_PATH_RESOLVER: "true"
+
+windows:desktop:
+  stage: build
+  tags:
+    - saas-windows-medium-amd64
+  timeout: 2h
+  variables:
+    ORT_LIB_LOCATION: "$CI_PROJECT_DIR\\crates\\blue-rs\\.ort\\onnxruntime-win-x64-1.23.2\\lib"
+  cache:
+    key: windows-desktop
+    paths:
+      - target/
+      - mamborambo-desktop/node_modules/
+    policy: pull-push
+  before_script:
+    - |
+      $ErrorActionPreference = "Stop"
+      if (-not (Get-Command rustup -ErrorAction SilentlyContinue)) {
+        Invoke-WebRequest https://win.rustup.rs/x86_64 -OutFile rustup-init.exe
+        .\rustup-init.exe -y --default-toolchain stable
+      }
+      $env:Path = "$env:USERPROFILE\.cargo\bin;$env:Path"
+      rustup default stable
+      rustup target add x86_64-pc-windows-msvc
+      if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
+        choco install -y nodejs-lts --no-progress
+      }
+      npm install -g "pnpm@$env:PNPM_VERSION"
+      if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
+        irm https://astral.sh/uv/install.ps1 | iex
+      }
+      $env:Path = "$env:USERPROFILE\.local\bin;$env:USERPROFILE\.cargo\bin;$env:Path"
+      if (-not (Get-Command cmake -ErrorAction SilentlyContinue)) {
+        choco install -y cmake --installargs 'ADD_CMAKE_TO_PATH=System' --no-progress
+      }
+  script:
+    - |
+      $ErrorActionPreference = "Stop"
+      $env:Path = "$env:USERPROFILE\.local\bin;$env:USERPROFILE\.cargo\bin;$env:Path"
+      $env:LIBRARY_PATH = $env:ORT_LIB_LOCATION
+      $env:SIGN_ENABLED = "false"
+      pnpm --dir mamborambo-desktop install --frozen-lockfile
+      uv run scripts/pre_build.py --target x86_64-pc-windows-msvc
+      pnpm --dir mamborambo-desktop exec tauri build --target x86_64-pc-windows-msvc --bundles nsis,msi
+  artifacts:
+    name: "mamborambo-windows-$CI_COMMIT_SHORT_SHA"
+    paths:
+      - target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+      - target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
+    expire_in: 7 days
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_COMMIT_BRANCH == "main"
+
+linux:desktop:
+  stage: build
+  image: ubuntu:22.04
+  tags:
+    - saas-linux-medium-amd64
+  timeout: 2h
+  variables:
+    DEBIAN_FRONTEND: noninteractive
+    ORT_LIB_LOCATION: "$CI_PROJECT_DIR/crates/blue-rs/.ort/onnxruntime-linux-x64-1.23.2/lib"
+    LIBRARY_PATH: "$CI_PROJECT_DIR/crates/blue-rs/.ort/onnxruntime-linux-x64-1.23.2/lib"
+    LD_LIBRARY_PATH: "$CI_PROJECT_DIR/crates/blue-rs/.ort/onnxruntime-linux-x64-1.23.2/lib"
+    RUSTFLAGS: "-L native=$CI_PROJECT_DIR/crates/blue-rs/.ort/onnxruntime-linux-x64-1.23.2/lib"
+  cache:
+    key: linux-desktop
+    paths:
+      - target/
+      - mamborambo-desktop/node_modules/
+    policy: pull-push
+  before_script:
+    - apt-get update -qq
+    - >
+      apt-get install -y -qq
+      build-essential cmake git curl wget file patchelf ca-certificates
+      libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev
+      libssl-dev libgtk-3-dev libxdo-dev clang libclang-dev libasound2-dev
+      pkg-config xdg-utils
+    - curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+    - apt-get install -y -qq nodejs
+    - corepack enable
+    - corepack prepare "pnpm@${PNPM_VERSION}" --activate
+    - curl -LsSf https://astral.sh/uv/install.sh | sh
+    - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+    - . "$HOME/.cargo/env"
+    - rustup target add x86_64-unknown-linux-gnu
+  script:
+    - export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
+    - pnpm --dir mamborambo-desktop install --frozen-lockfile
+    - uv run scripts/pre_build.py --target x86_64-unknown-linux-gnu
+    - pnpm --dir mamborambo-desktop exec tauri build --target x86_64-unknown-linux-gnu --bundles deb,rpm
+  artifacts:
+    name: "mamborambo-linux-$CI_COMMIT_SHORT_SHA"
+    paths:
+      - target/x86_64-unknown-linux-gnu/release/bundle/deb/*.deb
+      - target/x86_64-unknown-linux-gnu/release/bundle/rpm/*.rpm
+    expire_in: 7 days
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_COMMIT_BRANCH == "main"
+      when: manual

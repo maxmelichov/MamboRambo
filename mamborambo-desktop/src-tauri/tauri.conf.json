@@ -35,6 +35,9 @@
     "icon": ["icons/icon.icns"],
     "externalBin": [
       "binaries/mamborambo-server"
-    ]
+    ],
+    "resources": {
+      "src-tauri/binaries/libonnxruntime.1.23.2.dylib": "libonnxruntime.1.23.2.dylib"
+    }
   }
 }
