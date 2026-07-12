@@ -1,4 +1,5 @@
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useRef } from "react";
 import type { Dispatch, SetStateAction } from "react";
@@ -24,11 +25,33 @@ type HomePageProps = PageProps & {
 
 export function HomePage({ bundle, setBundle, studio, setStudio }: HomePageProps) {
   const navigate = useNavigate();
-  const { text, languages, language, blueVoice, blueVoiceIds, audioPath, audioAutoplayPending, step, status, busy, error } = studio;
+  const { text, languages, language, blueVoice, blueVoiceIds, audioPath, streamChunkPaths, audioAutoplayPending, step, status, busy, error } = studio;
   const loadingLanguagesRef = useRef(false);
 
   const audioSrc = useMemo(() => (audioPath ? convertFileSrc(audioPath) : ""), [audioPath]);
+  const streamedAudioSrcs = useMemo(
+    () => streamChunkPaths.map((path) => convertFileSrc(path)),
+    [streamChunkPaths],
+  );
   const updateStudio = (patch: Partial<StudioState>) => setStudio((current) => ({ ...current, ...patch }));
+
+  useEffect(() => {
+    const unlisten = listen<string>("synthesis-chunk", ({ payload }) => {
+      setStudio((current) => (
+        current.streamChunkPaths.includes(payload)
+          ? current
+          : {
+              ...current,
+              streamChunkPaths: [...current.streamChunkPaths, payload],
+              audioAutoplayPending: true,
+              status: "Playing generated audio...",
+            }
+      ));
+    });
+    return () => {
+      void unlisten.then((remove) => remove());
+    };
+  }, [setStudio]);
 
   useEffect(() => {
     if (!bundle?.installed || busy || loadingLanguagesRef.current) return;
@@ -78,7 +101,7 @@ export function HomePage({ bundle, setBundle, studio, setStudio }: HomePageProps
       return;
     }
 
-    updateStudio({ busy: true, error: "", audioPath: "", audioAutoplayPending: false });
+    updateStudio({ busy: true, error: "", audioPath: "", streamChunkPaths: [], audioAutoplayPending: false });
     try {
       updateStudio({ step: "starting", status: "Initializing Engine..." });
       await invoke<RunnerInfo>("start_runner");
@@ -112,7 +135,7 @@ export function HomePage({ bundle, setBundle, studio, setStudio }: HomePageProps
           language: selectedLanguage,
         },
       });
-      updateStudio({ audioPath: output, audioAutoplayPending: true, step: "done", status: "Generation complete." });
+      updateStudio({ audioPath: output, step: "done", status: "Generation complete." });
     } catch (err) {
       updateStudio({ step: "idle", error: String(err), status: "Generation failed." });
     } finally {
@@ -134,10 +157,11 @@ export function HomePage({ bundle, setBundle, studio, setStudio }: HomePageProps
             />
 
             <AnimatePresence>
-              {audioPath && (
+              {(audioPath || streamedAudioSrcs.length > 0) && (
                 <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}>
                   <WaveformPlayer
                     src={audioSrc}
+                    streamSources={streamedAudioSrcs}
                     sourcePath={audioPath}
                     filename={audioPath.split(/[\\/]/).pop() || "generated-audio.wav"}
                     autoPlayOnce={audioAutoplayPending}

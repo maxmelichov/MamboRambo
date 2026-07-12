@@ -7,12 +7,14 @@ import { motion } from "framer-motion";
 
 export function WaveformPlayer({
   src,
+  streamSources = [],
   sourcePath,
   filename,
   autoPlayOnce = false,
   onAutoPlayConsumed,
 }: {
   src: string;
+  streamSources?: string[];
   sourcePath: string;
   filename: string;
   autoPlayOnce?: boolean;
@@ -21,7 +23,10 @@ export function WaveformPlayer({
   const audioRef = useRef<HTMLAudioElement>(null);
   const waveformRef = useRef<HTMLDivElement>(null);
   const draggingRef = useRef(false);
+  const resumeQueuedChunkRef = useRef(false);
+  const waitingForChunkRef = useRef(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [streamIndex, setStreamIndex] = useState(0);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
@@ -30,11 +35,26 @@ export function WaveformPlayer({
   const [savedPath, setSavedPath] = useState("");
   const [downloadError, setDownloadError] = useState("");
 
+  const activeSrc = streamSources[streamIndex] || src;
+
   useEffect(() => {
-    if (!autoPlayOnce || !audioRef.current) return;
+    if (!autoPlayOnce || !audioRef.current || !activeSrc) return;
     audioRef.current.play().catch(() => setIsPlaying(false));
     onAutoPlayConsumed?.();
-  }, [autoPlayOnce, onAutoPlayConsumed, src]);
+  }, [autoPlayOnce, onAutoPlayConsumed, activeSrc]);
+
+  useEffect(() => {
+    if (!waitingForChunkRef.current || streamIndex + 1 >= streamSources.length) return;
+    waitingForChunkRef.current = false;
+    resumeQueuedChunkRef.current = true;
+    setStreamIndex((index) => index + 1);
+  }, [streamIndex, streamSources.length]);
+
+  useEffect(() => {
+    if (!resumeQueuedChunkRef.current || !audioRef.current || !activeSrc) return;
+    resumeQueuedChunkRef.current = false;
+    audioRef.current.play().catch(() => setIsPlaying(false));
+  }, [activeSrc]);
 
   const togglePlay = () => {
     if (!audioRef.current) return;
@@ -42,6 +62,22 @@ export function WaveformPlayer({
     else {
       audioRef.current.play().catch(() => setIsPlaying(false));
     }
+  };
+
+  const onEnded = () => {
+    if (streamSources.length > 0) {
+      if (streamIndex + 1 < streamSources.length) {
+        resumeQueuedChunkRef.current = true;
+        setStreamIndex((index) => index + 1);
+      } else {
+        // The next chunk may still be synthesizing. Resume automatically as
+        // soon as its event reaches the webview.
+        waitingForChunkRef.current = true;
+        setIsPlaying(false);
+      }
+      return;
+    }
+    setIsPlaying(false);
   };
 
   const downloadAudio = async () => {
@@ -136,12 +172,12 @@ export function WaveformPlayer({
     <Card className="group flex flex-col gap-5 border-none bg-white p-5 shadow-2xl transition-all hover:shadow-3xl sm:flex-row sm:items-center sm:gap-8">
       <audio
         ref={audioRef}
-        src={src}
+        src={activeSrc}
         onTimeUpdate={onTimeUpdate}
         onLoadedMetadata={onLoadedMetadata}
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
-        onEnded={() => setIsPlaying(false)}
+        onEnded={onEnded}
       />
 
       <div className="flex items-center gap-4">
@@ -188,6 +224,7 @@ export function WaveformPlayer({
         </div>
       </div>
 
+      {sourcePath && (
       <div className="flex shrink-0 items-center gap-2 border-l border-border/10 pl-6">
         <Button 
           variant="outline" 
@@ -199,6 +236,7 @@ export function WaveformPlayer({
           <Download className="h-4 w-4" />
         </Button>
       </div>
+      )}
 
       {(savedPath || downloadError) && (
         <div className="basis-full rounded-xl border border-border/40 bg-background/40 p-3 text-xs">

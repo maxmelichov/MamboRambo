@@ -1,10 +1,11 @@
 use axum::{
     Json,
-    body::Bytes,
+    body::{Body, Bytes},
     extract::State,
     http::{HeaderValue, StatusCode, header},
     response::{IntoResponse, Response},
 };
+use futures_util::stream;
 
 use super::super::{
     dto::SpeechBody,
@@ -40,6 +41,9 @@ pub async fn speech(State(server): State<SharedServer>, Json(body): Json<SpeechB
             "invalid_request",
             "BlueTTS supports only the saved Rotem and Roi voices; voice cloning is unavailable",
         );
+    }
+    if body.stream {
+        return streaming_wav_response(server, body).await;
     }
 
     let Ok(tmp) = tempfile::Builder::new()
@@ -84,6 +88,100 @@ pub async fn speech(State(server): State<SharedServer>, Json(body): Json<SpeechB
         );
     };
     wav_response(data)
+}
+
+/// Stream self-contained WAV chunks using a small binary frame protocol:
+/// `[kind: u8][payload length: u32 big endian][payload]`, where kind `1` is a
+/// playable chunk, `2` is the complete normalized WAV, and `3` is UTF-8 error
+/// text. The desktop client consumes this protocol and emits each chunk to the
+/// webview immediately.
+async fn streaming_wav_response(server: SharedServer, body: SpeechBody) -> Response {
+    {
+        let inner = server.inner.lock().await;
+        if inner.ctx.is_none() {
+            return write_error(
+                StatusCode::SERVICE_UNAVAILABLE,
+                "no_model",
+                "no model loaded",
+            );
+        }
+    }
+
+    let voice = first_non_empty([body.voice]);
+    let (tx, rx) = tokio::sync::mpsc::channel::<Result<Bytes, std::io::Error>>(2);
+    tokio::task::spawn_blocking(move || {
+        let mut inner = server.inner.blocking_lock();
+        let Some(ctx) = inner.ctx.as_mut() else {
+            let _ = tx.blocking_send(Ok(frame(3, b"no model loaded".to_vec())));
+            return;
+        };
+        let sample_rate = ctx.sample_rate();
+        let mut send_chunk = |samples: &[f32], sample_rate: u32| -> anyhow::Result<()> {
+            let wav = wav_bytes(samples, sample_rate)?;
+            tx.blocking_send(Ok(frame(1, wav)))
+                .map_err(|_| anyhow::anyhow!("streaming client disconnected"))
+        };
+        match ctx.synthesize_streaming(
+            &body.input,
+            (!voice.is_empty()).then_some(voice.as_str()),
+            &body.language,
+            &mut send_chunk,
+        ) {
+            Ok(audio) => {
+                // The final frame is retained for download/save. It does not
+                // delay playback because every chunk was already sent above.
+                match wav_bytes(&audio, sample_rate) {
+                    Ok(wav) => {
+                        let _ = tx.blocking_send(Ok(frame(2, wav)));
+                    }
+                    Err(err) => {
+                        let _ = tx.blocking_send(Ok(frame(3, err.to_string().into_bytes())));
+                    }
+                }
+            }
+            Err(err) => {
+                let _ = tx.blocking_send(Ok(frame(3, err.to_string().into_bytes())));
+            }
+        }
+    });
+
+    let body = stream::unfold(rx, |mut receiver| async move {
+        receiver.recv().await.map(|item| (item, receiver))
+    });
+    let mut response = Body::from_stream(body).into_response();
+    response.headers_mut().insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("application/x-mamborambo-audio-chunks"),
+    );
+    response.headers_mut().insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("no-store"),
+    );
+    response
+}
+
+fn frame(kind: u8, payload: Vec<u8>) -> Bytes {
+    let mut out = Vec::with_capacity(5 + payload.len());
+    out.push(kind);
+    out.extend_from_slice(&(payload.len() as u32).to_be_bytes());
+    out.extend_from_slice(&payload);
+    Bytes::from(out)
+}
+
+fn wav_bytes(samples: &[f32], sample_rate: u32) -> anyhow::Result<Vec<u8>> {
+    let mut cursor = std::io::Cursor::new(Vec::new());
+    let spec = hound::WavSpec {
+        channels: 1,
+        sample_rate,
+        bits_per_sample: 16,
+        sample_format: hound::SampleFormat::Int,
+    };
+    let mut writer = hound::WavWriter::new(&mut cursor, spec)?;
+    for &sample in samples {
+        writer.write_sample((sample.clamp(-1.0, 1.0) * i16::MAX as f32) as i16)?;
+    }
+    writer.finalize()?;
+    Ok(cursor.into_inner())
 }
 
 fn wav_response(data: Vec<u8>) -> Response {

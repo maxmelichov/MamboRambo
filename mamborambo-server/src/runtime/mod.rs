@@ -17,6 +17,14 @@ pub struct Language {
 pub trait Runtime: Send {
     fn languages(&self) -> &[Language];
     fn voices(&self) -> Option<Vec<String>>;
+    fn sample_rate(&self) -> u32;
+    fn synthesize_streaming(
+        &mut self,
+        text: &str,
+        voice: Option<&str>,
+        language: &str,
+        on_chunk: &mut dyn FnMut(&[f32], u32) -> Result<()>,
+    ) -> Result<Vec<f32>>;
     fn synthesize_to_file(
         &mut self,
         text: &str,

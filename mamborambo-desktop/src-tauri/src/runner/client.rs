@@ -1,4 +1,5 @@
-use tauri::State;
+use futures_util::StreamExt;
+use tauri::{Emitter, State};
 
 use crate::{analytics, runner::errors::track_runner_err};
 
@@ -99,6 +100,7 @@ pub async fn synthesize_request(
         "voice": voice,
         "response_format": "wav",
         "language": language,
+        "stream": true,
     });
     let props = || {
         serde_json::json!({
@@ -132,42 +134,93 @@ pub async fn synthesize_request(
         ));
     }
 
-    let bytes = response.bytes().await.map_err(|err| {
-        analytics::track_error(
-            &app,
-            analytics::events::ERROR_SYNTHESIS_FAILED,
-            format!("failed to read speech response: {err}"),
-            props(),
-        )
-    })?;
-    tauri::async_runtime::spawn_blocking({
-        let output_path = output_path.clone();
-        move || {
-            std::fs::write(&output_path, bytes)
-                .map_err(|err| format!("failed to write {output_path}: {err}"))
-        }
-    })
-    .await
-    .map_err(|err| {
-        analytics::track_error(
-            &app,
-            analytics::events::ERROR_SYNTHESIS_FAILED,
-            format!("failed to join file write task: {err}"),
-            props(),
-        )
-    })?
-    .map_err(|err| {
-        analytics::track_error(
-            &app,
-            analytics::events::ERROR_SYNTHESIS_FAILED,
-            err,
-            props(),
-        )
-    })?;
+    stream_speech_response(&app, response, &output_path, props()).await?;
     analytics::track_event_handle_with_props(
         &app,
         analytics::events::SYNTHESIS_COMPLETED,
         Some(props()),
     );
     Ok(output_path)
+}
+
+async fn stream_speech_response(
+    app: &tauri::AppHandle,
+    response: reqwest::Response,
+    output_path: &str,
+    props: serde_json::Value,
+) -> Result<(), String> {
+    const MAX_FRAME_BYTES: usize = 128 * 1024 * 1024;
+    let mut stream = response.bytes_stream();
+    let mut pending = Vec::<u8>::new();
+    let mut chunk_index = 0usize;
+    let mut complete = false;
+
+    while let Some(next) = stream.next().await {
+        let bytes = next.map_err(|err| {
+            analytics::track_error(
+                app,
+                analytics::events::ERROR_SYNTHESIS_FAILED,
+                format!("failed to read speech stream: {err}"),
+                props.clone(),
+            )
+        })?;
+        pending.extend_from_slice(&bytes);
+
+        while pending.len() >= 5 {
+            let kind = pending[0];
+            let length = u32::from_be_bytes([pending[1], pending[2], pending[3], pending[4]]) as usize;
+            if length > MAX_FRAME_BYTES {
+                return Err(analytics::track_error(
+                    app,
+                    analytics::events::ERROR_SYNTHESIS_FAILED,
+                    "received an invalidly large speech frame".to_string(),
+                    props,
+                ));
+            }
+            if pending.len() < 5 + length {
+                break;
+            }
+            let payload = pending[5..5 + length].to_vec();
+            pending.drain(..5 + length);
+
+            match kind {
+                1 => {
+                    let path = chunk_output_path(output_path, chunk_index);
+                    chunk_index += 1;
+                    tokio::fs::write(&path, payload).await.map_err(|err| {
+                        format!("failed to write streamed audio chunk {path}: {err}")
+                    })?;
+                    app.emit("synthesis-chunk", &path)
+                        .map_err(|err| format!("failed to emit streamed audio chunk: {err}"))?;
+                }
+                2 => {
+                    tokio::fs::write(output_path, payload).await.map_err(|err| {
+                        format!("failed to write final audio {output_path}: {err}")
+                    })?;
+                    complete = true;
+                }
+                3 => {
+                    return Err(String::from_utf8_lossy(&payload).into_owned());
+                }
+                _ => return Err("received an unknown speech stream frame".to_string()),
+            }
+        }
+    }
+
+    if !pending.is_empty() {
+        return Err("speech stream ended with an incomplete frame".to_string());
+    }
+    if !complete {
+        return Err("speech stream ended before the final WAV was received".to_string());
+    }
+    Ok(())
+}
+
+fn chunk_output_path(output_path: &str, index: usize) -> String {
+    let path = std::path::Path::new(output_path);
+    let stem = path.file_stem().and_then(|value| value.to_str()).unwrap_or("speech");
+    path.with_file_name(format!("{stem}-chunk-{index:04}.wav"))
+        .as_os_str()
+        .to_string_lossy()
+        .into_owned()
 }

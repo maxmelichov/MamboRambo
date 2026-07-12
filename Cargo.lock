@@ -2892,6 +2892,7 @@ dependencies = [
  "axum",
  "blue-rs",
  "clap",
+ "futures-util",
  "hound",
  "serde",
  "serde_json",

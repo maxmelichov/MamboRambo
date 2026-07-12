@@ -93,6 +93,43 @@ impl Runtime for BlueRuntime {
         Some(VOICES.into_iter().map(|(id, _)| id.to_owned()).collect())
     }
 
+    fn sample_rate(&self) -> u32 {
+        self.tts.sample_rate()
+    }
+
+    fn synthesize_streaming(
+        &mut self,
+        text: &str,
+        voice: Option<&str>,
+        language: &str,
+        on_chunk: &mut dyn FnMut(&[f32], u32) -> Result<()>,
+    ) -> Result<Vec<f32>> {
+        let (_language, language_code) = Self::language_for(text, language)?;
+        let voice = Self::normalize_voice(voice.unwrap_or("Rotem"));
+        let style = self
+            .styles
+            .get(voice)
+            .ok_or_else(|| anyhow::anyhow!("unknown Blue voice `{voice}`; expected Rotem or Roi"))?;
+        let sample_rate = self.tts.sample_rate();
+        self.tts.synthesize_text_streaming(
+            &mut self.phonemizer,
+            text,
+            style,
+            SynthesisOptions {
+                lang: language_code.to_owned(),
+                total_step: 8,
+                cfg_scale: 4.0,
+                speed: 0.95,
+                chunking: Some(blue_rs::ChunkingOptions {
+                    enabled: true,
+                    silence_seconds: 0.15,
+                    max_chars: Some(200),
+                }),
+            },
+            |chunk| on_chunk(chunk, sample_rate),
+        )
+    }
+
     fn synthesize_to_file(
         &mut self,
         text: &str,

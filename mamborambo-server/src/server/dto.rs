@@ -71,4 +71,6 @@ pub struct SpeechBody {
     pub response_format: String,
     #[serde(default)]
     pub language: String,
+    #[serde(default)]
+    pub stream: bool,
 }

@@ -25,6 +25,7 @@ function App() {
     blueVoice: "Rotem",
     blueVoiceIds: [],
     audioPath: "",
+    streamChunkPaths: [],
     audioAutoplayPending: false,
     step: "idle",
     status: "Ready to generate.",

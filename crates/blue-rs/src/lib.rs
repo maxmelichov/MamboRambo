@@ -222,6 +222,79 @@ impl BlueTts {
         Ok(normalize_generated_audio(output))
     }
 
+    /// Prepare, phonemize, and synthesize raw text one playable chunk at a time.
+    ///
+    /// The callback is invoked as soon as each chunk has been synthesized, before
+    /// the next chunk starts. The returned samples are the complete, normalized
+    /// recording and are intended for saving after streaming playback has begun.
+    pub fn synthesize_text_streaming<F>(
+        &mut self,
+        phonemizer: &mut Phonemizer,
+        text: &str,
+        style: &VoiceStyle,
+        opts: SynthesisOptions,
+        mut on_chunk: F,
+    ) -> Result<Vec<f32>>
+    where
+        F: FnMut(&[f32]) -> Result<()>,
+    {
+        let language = Language::try_from(opts.lang.as_str())?;
+        let prepared = prepare_text_for_synthesis(text, language.code());
+        let segments = split_prepared_by_reference_codes(&prepared);
+        let mut output = Vec::new();
+        let mut previous_was_reference = false;
+        let base_seed = rand::random::<u64>();
+        let chunking = opts.chunking.clone().unwrap_or(ChunkingOptions {
+            enabled: true,
+            silence_seconds: 0.15,
+            max_chars: Some(200),
+        });
+
+        for (segment_index, segment) in segments.iter().enumerate() {
+            if segment.text.is_empty() {
+                continue;
+            }
+            let phonemes = phonemizer.g2p(&segment.text, language)?;
+            if phonemes.is_empty() {
+                continue;
+            }
+            let mut segment_opts = opts.clone();
+            segment_opts.chunking = None;
+            if segment.is_reference_code {
+                segment_opts.speed *= REFERENCE_CODE_SPEED_SCALE;
+            }
+            let chunks = if chunking.enabled {
+                chunking::split_phonemes(&phonemes, chunking.max_chars)
+            } else {
+                vec![phonemes]
+            };
+
+            for (chunk_index, chunk) in chunks.iter().enumerate() {
+                let mut audio = self.synthesize_chunk(
+                    chunk,
+                    style,
+                    &segment_opts,
+                    base_seed.wrapping_add((segment_index as u64) << 32).wrapping_add(chunk_index as u64),
+                )?;
+                if !output.is_empty() {
+                    let gap = if segment.is_reference_code || previous_was_reference {
+                        REFERENCE_CODE_SILENCE
+                    } else {
+                        chunking.silence_seconds
+                    };
+                    let mut playable = Vec::new();
+                    append_silence(&mut playable, self.sample_rate(), gap);
+                    playable.append(&mut audio);
+                    audio = playable;
+                }
+                on_chunk(&audio)?;
+                output.extend_from_slice(&audio);
+                previous_was_reference = segment.is_reference_code;
+            }
+        }
+        Ok(normalize_generated_audio(output))
+    }
+
     fn synthesize_chunk(
         &mut self,
         phonemes: &str,
