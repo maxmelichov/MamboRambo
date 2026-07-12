@@ -23,38 +23,47 @@ windows:desktop:
   variables:
     ORT_LIB_LOCATION: "$CI_PROJECT_DIR\\crates\\blue-rs\\.ort\\onnxruntime-win-x64-1.23.2\\lib"
   cache:
-    key: windows-desktop
+    key: windows-desktop-v2
     paths:
       - target/
       - mamborambo-desktop/node_modules/
     policy: pull-push
-  before_script:
+  script:
     - |
       $ErrorActionPreference = "Stop"
+      function Refresh-Path {
+        $machine = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
+        $user = [System.Environment]::GetEnvironmentVariable("Path", "User")
+        $env:Path = "$env:USERPROFILE\.cargo\bin;$env:USERPROFILE\.local\bin;$env:APPDATA\npm;C:\Program Files\LLVM\bin;C:\Program Files\CMake\bin;$user;$machine"
+      }
       if (-not (Get-Command rustup -ErrorAction SilentlyContinue)) {
         Invoke-WebRequest https://win.rustup.rs/x86_64 -OutFile rustup-init.exe
         .\rustup-init.exe -y --default-toolchain stable
       }
-      $env:Path = "$env:USERPROFILE\.cargo\bin;$env:Path"
+      Refresh-Path
       rustup default stable
       rustup target add x86_64-pc-windows-msvc
       if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
         choco install -y nodejs-lts --no-progress
+        Refresh-Path
       }
       npm install -g "pnpm@$env:PNPM_VERSION"
       if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
         irm https://astral.sh/uv/install.ps1 | iex
       }
-      $env:Path = "$env:USERPROFILE\.local\bin;$env:USERPROFILE\.cargo\bin;$env:Path"
       if (-not (Get-Command cmake -ErrorAction SilentlyContinue)) {
         choco install -y cmake --installargs 'ADD_CMAKE_TO_PATH=System' --no-progress
       }
-  script:
-    - |
-      $ErrorActionPreference = "Stop"
-      $env:Path = "$env:USERPROFILE\.local\bin;$env:USERPROFILE\.cargo\bin;$env:Path"
+      if (-not (Test-Path "C:\Program Files\LLVM\bin\libclang.dll")) {
+        choco install -y llvm --no-progress
+      }
+      Refresh-Path
+      $env:LIBCLANG_PATH = "C:\Program Files\LLVM\bin"
       $env:LIBRARY_PATH = $env:ORT_LIB_LOCATION
       $env:SIGN_ENABLED = "false"
+      Write-Host "PATH=$env:Path"
+      Write-Host "LIBCLANG_PATH=$env:LIBCLANG_PATH"
+      Get-Command pnpm, uv, rustc, cmake | Format-Table Name, Source
       pnpm --dir mamborambo-desktop install --frozen-lockfile
       uv run scripts/pre_build.py --target x86_64-pc-windows-msvc
       pnpm --dir mamborambo-desktop exec tauri build --target x86_64-pc-windows-msvc --bundles nsis,msi
