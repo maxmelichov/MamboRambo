@@ -135,7 +135,16 @@ export function HomePage({ bundle, setBundle, studio, setStudio }: HomePageProps
           language: selectedLanguage,
         },
       });
-      updateStudio({ audioPath: output, step: "done", status: "Generation complete." });
+      // Chunk files exist solely for low-latency playback while inference is
+      // running. Once the server has delivered the finalized WAV, discard that
+      // temporary playlist so all later clicks/seeks use the complete recording.
+      updateStudio({
+        audioPath: output,
+        streamChunkPaths: [],
+        audioAutoplayPending: false,
+        step: "done",
+        status: "Generation complete.",
+      });
     } catch (err) {
       updateStudio({ step: "idle", error: String(err), status: "Generation failed." });
     } finally {
