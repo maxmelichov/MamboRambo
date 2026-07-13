@@ -1,92 +1,72 @@
-# Building
+# Building and reinstalling
 
-MamboRambo is built from the Rust workspace and the Tauri desktop app. The desktop bundles a Rust sidecar named `mamborambo-server`.
+MamboRambo packages a Tauri desktop application with a Rust inference sidecar. Use `pnpm` for the desktop and Cargo for the Rust workspace.
 
-## Server
+## Prerequisites
 
-Build the local HTTP server:
+- Rust toolchain for your platform
+- Node.js and pnpm
+- Python + uv (used by the sidecar preparation script)
+- Platform build dependencies required by Tauri
 
-```console
-cargo build -p mamborambo-server --release --bin mamborambo-server
-```
+On Linux, install `patchelf`; it is required to package ONNX Runtime correctly.
 
-For a specific Tauri sidecar target:
-
-```console
-uv run scripts/pre_build.py --target aarch64-apple-darwin
-```
-
-That command builds `mamborambo-server` with Cargo and copies the platform-suffixed binary into:
-
-```text
-mamborambo-desktop/src-tauri/binaries/
-```
-
-## Desktop
-
-Install frontend dependencies:
+## Install dependencies
 
 ```console
+pnpm install
 cd mamborambo-desktop
 pnpm install
 ```
 
-Run the app in development:
+## Development
+
+Run the desktop application with hot reload:
 
 ```console
+cd mamborambo-desktop
 pnpm tauri dev
 ```
 
-Build a package:
+The pre-build hook compiles the matching `mamborambo-server` sidecar and stages ONNX Runtime before Tauri starts.
+
+## Build an installable desktop app
 
 ```console
+cd mamborambo-desktop
 pnpm tauri build
 ```
 
-## Models
-
-Packaged model releases use `mamborambo-models-v*` tags. The Qwen bundle layout is:
+On macOS, the installer is normally written under:
 
 ```text
-mamborambo-models-q5_0/
-  qwen3-tts-model.gguf
-  qwen3-tts-codec.gguf
-  metadata.json
+src-tauri/target/release/bundle/dmg/
 ```
 
-Kokoro bundles contain:
+Open the generated `.dmg`, drag MamboRambo into Applications, and replace the existing copy. If macOS says the app is still running, quit it first. Windows installers and Linux packages are emitted in the corresponding `src-tauri/target/release/bundle/` subdirectories.
 
-```text
-mamborambo-kokoro-models-kokoro-v1.0/
-  kokoro-v1.0.onnx
-  voices-v1.0.bin
-  espeak-ng-data/
-  manifest.json
-```
-
-## Releases
-
-Server sidecar releases use `mamborambo-server-v*` tags:
+For a faster local reinstallable debug build:
 
 ```console
-git tag mamborambo-server-v0.1.0
-git push origin mamborambo-server-v0.1.0
+cd mamborambo-desktop
+pnpm tauri build --debug
 ```
 
-Manual release workflow:
-
-```console
-gh workflow run release-mamborambo-server.yml \
-  --ref main \
-  -f version=mamborambo-server-v0.1.0
-```
-
-## Checks
+## Validate
 
 ```console
 cargo test --workspace
 cargo build -p mamborambo-server --release --bin mamborambo-server
 cd mamborambo-desktop
 pnpm build
-pnpm tauri build --debug
 ```
+
+## Models
+
+Model files are downloaded on first use into the application-local data directory:
+
+- macOS: `~/Library/Application Support/com.maxmelichov.mamborambo/models`
+- Windows: `%LOCALAPPDATA%\com.maxmelichov.mamborambo\models`
+- Linux: `~/.local/share/com.maxmelichov.mamborambo/models`
+
+The current release provides the BlueTTS model bundle. New models must be registered in `crates/mamborambo-registry` and included in a sidecar build before the desktop will offer them.

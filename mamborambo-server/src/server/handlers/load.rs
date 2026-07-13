@@ -40,12 +40,18 @@ pub async fn model_load(
     let inner = server.inner.lock().await;
     Json(LoadResponse {
         status: "loaded".into(),
+        runtime: inner.runtime.clone(),
         model: inner.model_name.clone(),
     })
     .into_response()
 }
 
 fn blue_load_params(body: LoadBody) -> Result<LoadParams, &'static str> {
+    if body.runtime != mamborambo_registry::DEFAULT_RUNTIME_ID {
+        return Err(
+            "unsupported runtime; install a server build that includes the selected runtime",
+        );
+    }
     let model_path = first_non_empty([
         body.model_path,
         std::env::var("MAMBORAMBO_BLUE_MODEL_DIR").unwrap_or_default(),
@@ -58,7 +64,8 @@ fn blue_load_params(body: LoadBody) -> Result<LoadParams, &'static str> {
         return Err("Blue runtime requires model_path and renikud_path");
     }
     Ok(LoadParams {
-        blue: RuntimeParams::Blue {
+        runtime: mamborambo_registry::DEFAULT_RUNTIME_ID.into(),
+        params: RuntimeParams::Blue {
             model_dir: model_path.into(),
             renikud_path: renikud_path.into(),
         },
@@ -73,10 +80,13 @@ mod tests {
     #[test]
     fn blue_load_requires_model_and_renikud_paths() {
         assert!(blue_load_params(LoadBody::default()).is_err());
-        assert!(blue_load_params(LoadBody {
-            model_path: "/models/blue".into(),
-            renikud_path: "/models/renikud.onnx".into(),
-        })
-        .is_ok());
+        assert!(
+            blue_load_params(LoadBody {
+                runtime: "blue".into(),
+                model_path: "/models/blue".into(),
+                renikud_path: "/models/renikud.onnx".into(),
+            })
+            .is_ok()
+        );
     }
 }

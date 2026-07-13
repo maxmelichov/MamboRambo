@@ -33,6 +33,12 @@ export function HomePage({ bundle, setBundle, studio, setStudio }: HomePageProps
     () => streamChunkPaths.map((path) => convertFileSrc(path)),
     [streamChunkPaths],
   );
+  // Prefer the streamed chunks (available first, identical audio) and fall back
+  // to the finalized WAV for replays of history where no chunks were captured.
+  const playerSources = useMemo(
+    () => (streamedAudioSrcs.length ? streamedAudioSrcs : audioSrc ? [audioSrc] : []),
+    [streamedAudioSrcs, audioSrc],
+  );
   const updateStudio = (patch: Partial<StudioState>) => setStudio((current) => ({ ...current, ...patch }));
 
   useEffect(() => {
@@ -136,11 +142,10 @@ export function HomePage({ bundle, setBundle, studio, setStudio }: HomePageProps
         },
       });
       // Chunk files exist solely for low-latency playback while inference is
-      // running. Once the server has delivered the finalized WAV, discard that
-      // temporary playlist so all later clicks/seeks use the complete recording.
+      // running. Keep their playlist alive until the Web Audio queue finishes;
+      // clearing it here would unmount the scheduler and cut off playback.
       updateStudio({
         audioPath: output,
-        streamChunkPaths: [],
         audioAutoplayPending: false,
         step: "done",
         status: "Generation complete.",
@@ -169,10 +174,10 @@ export function HomePage({ bundle, setBundle, studio, setStudio }: HomePageProps
               {(audioPath || streamedAudioSrcs.length > 0) && (
                 <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}>
                   <WaveformPlayer
-                    src={audioSrc}
-                    streamSources={streamedAudioSrcs}
-                    sourcePath={audioPath}
-                    filename={audioPath.split(/[\\/]/).pop() || "generated-audio.wav"}
+                    sources={playerSources}
+                    downloadPath={audioPath}
+                    complete={Boolean(audioPath)}
+                    filename={(audioPath || streamChunkPaths[0] || "generated-audio.wav").split(/[\\/]/).pop() || "generated-audio.wav"}
                     autoPlayOnce={audioAutoplayPending}
                     onAutoPlayConsumed={() => updateStudio({ audioAutoplayPending: false })}
                   />

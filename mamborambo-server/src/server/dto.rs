@@ -40,11 +40,14 @@ pub struct StatusResponse {
 #[derive(Debug, Serialize, ToSchema)]
 pub struct LoadResponse {
     pub status: String,
+    pub runtime: String,
     pub model: String,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct LoadBody {
+    #[serde(default = "default_runtime")]
+    pub runtime: String,
     #[serde(default)]
     pub model_path: String,
     #[serde(default)]
@@ -54,10 +57,15 @@ pub struct LoadBody {
 impl Default for LoadBody {
     fn default() -> Self {
         Self {
+            runtime: mamborambo_registry::DEFAULT_RUNTIME_ID.into(),
             model_path: String::new(),
             renikud_path: String::new(),
         }
     }
+}
+
+fn default_runtime() -> String {
+    mamborambo_registry::DEFAULT_RUNTIME_ID.into()
 }
 
 #[derive(Debug, Deserialize, ToSchema)]

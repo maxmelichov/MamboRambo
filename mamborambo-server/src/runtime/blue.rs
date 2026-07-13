@@ -106,10 +106,9 @@ impl Runtime for BlueRuntime {
     ) -> Result<Vec<f32>> {
         let (_language, language_code) = Self::language_for(text, language)?;
         let voice = Self::normalize_voice(voice.unwrap_or("Rotem"));
-        let style = self
-            .styles
-            .get(voice)
-            .ok_or_else(|| anyhow::anyhow!("unknown Blue voice `{voice}`; expected Rotem or Roi"))?;
+        let style = self.styles.get(voice).ok_or_else(|| {
+            anyhow::anyhow!("unknown Blue voice `{voice}`; expected Rotem or Roi")
+        })?;
         let sample_rate = self.tts.sample_rate();
         self.tts.synthesize_text_streaming(
             &mut self.phonemizer,
@@ -139,10 +138,9 @@ impl Runtime for BlueRuntime {
     ) -> Result<()> {
         let (_language, language_code) = Self::language_for(text, language)?;
         let voice = Self::normalize_voice(voice.unwrap_or("Rotem"));
-        let style = self
-            .styles
-            .get(voice)
-            .ok_or_else(|| anyhow::anyhow!("unknown Blue voice `{voice}`; expected Rotem or Roi"))?;
+        let style = self.styles.get(voice).ok_or_else(|| {
+            anyhow::anyhow!("unknown Blue voice `{voice}`; expected Rotem or Roi")
+        })?;
         let audio = self.tts.synthesize_text(
             &mut self.phonemizer,
             text,

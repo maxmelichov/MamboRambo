@@ -10,6 +10,7 @@ use tauri::{Emitter, Manager};
 use tokio::io::AsyncWriteExt;
 
 use crate::analytics;
+use mamborambo_registry::runtimes;
 
 const MODELS_TAG: &str = "mamborambo-models-v0.1.3";
 const MODEL_DIR: &str = "mamborambo-models-q5_0";
@@ -56,6 +57,15 @@ pub struct ModelSource {
     pub files: Vec<ModelSourceFile>,
     pub archive_url: Option<String>,
     pub directory: String,
+    pub capabilities: RuntimeCapabilities,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RuntimeCapabilities {
+    pub hebrew: bool,
+    pub streaming: bool,
+    pub voice_reference: bool,
+    pub fixed_voices: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -114,7 +124,9 @@ async fn download_model_bundle_inner(
     runtime: String,
 ) -> Result<ModelBundle, String> {
     if runtime != "blue" {
-        return Err(format!("unsupported runtime `{runtime}`; BlueTTS is the only available runtime"));
+        return Err(format!(
+            "unsupported runtime `{runtime}`; BlueTTS is the only available runtime"
+        ));
     }
     return download_blue_bundle(app).await;
     /*
@@ -193,7 +205,9 @@ pub fn model_bundle_for_runtime(
 ) -> Result<ModelBundle, String> {
     match runtime {
         "blue" => blue_bundle(app),
-        other => Err(format!("unsupported runtime `{other}`; BlueTTS is the only available runtime")),
+        other => Err(format!(
+            "unsupported runtime `{other}`; BlueTTS is the only available runtime"
+        )),
     }
 }
 
@@ -266,55 +280,32 @@ fn kokoro_bundle(app: &tauri::AppHandle) -> Result<ModelBundle, String> {
 
 fn model_sources() -> ModelSources {
     ModelSources {
-        runtimes: vec![
-            ModelSource {
-                id: "blue".to_string(),
-                name: "BlueTTS".to_string(),
-                version: BLUE_MODELS_TAG.to_string(),
-                size: "~275 MB".to_string(),
-                description: "Fast offline speech for Hebrew and English.".to_string(),
-                files: vec![
-                    ModelSourceFile {
-                        name: "duration_predictor.onnx".to_string(),
-                        url: format!("{BLUE_MODEL_BASE_URL}/duration_predictor.onnx"),
-                    },
-                    ModelSourceFile {
-                        name: "text_encoder.onnx".to_string(),
-                        url: format!("{BLUE_MODEL_BASE_URL}/text_encoder.onnx"),
-                    },
-                    ModelSourceFile {
-                        name: "vector_estimator.onnx".to_string(),
-                        url: format!("{BLUE_MODEL_BASE_URL}/vector_estimator.onnx"),
-                    },
-                    ModelSourceFile {
-                        name: "vocoder.onnx".to_string(),
-                        url: format!("{BLUE_MODEL_BASE_URL}/vocoder.onnx"),
-                    },
-                    ModelSourceFile {
-                        name: "vocab.json".to_string(),
-                        url: format!("{BLUE_MODEL_BASE_URL}/vocab.json"),
-                    },
-                    ModelSourceFile {
-                        name: "tts.json".to_string(),
-                        url: format!("{BLUE_MODEL_BASE_URL}/tts.json"),
-                    },
-                    ModelSourceFile {
-                        name: "voices/female1.json".to_string(),
-                        url: format!("{BLUE_MODEL_BASE_URL}/voices/female1.json"),
-                    },
-                    ModelSourceFile {
-                        name: "voices/male1.json".to_string(),
-                        url: format!("{BLUE_MODEL_BASE_URL}/voices/male1.json"),
-                    },
-                    ModelSourceFile {
-                        name: "renikud.onnx".to_string(),
-                        url: RENIKUD_URL.to_string(),
-                    },
-                ],
+        runtimes: runtimes()
+            .iter()
+            .map(|runtime| ModelSource {
+                id: runtime.id.into(),
+                name: runtime.name.into(),
+                version: runtime.version.into(),
+                size: runtime.size.into(),
+                description: runtime.description.into(),
+                files: runtime
+                    .files
+                    .iter()
+                    .map(|file| ModelSourceFile {
+                        name: file.name.into(),
+                        url: file.url.into(),
+                    })
+                    .collect(),
                 archive_url: None,
-                directory: BLUE_MODEL_DIR.to_string(),
-            },
-        ],
+                directory: runtime.directory.into(),
+                capabilities: RuntimeCapabilities {
+                    hebrew: runtime.capabilities.hebrew,
+                    streaming: runtime.capabilities.streaming,
+                    voice_reference: runtime.capabilities.voice_reference,
+                    fixed_voices: runtime.capabilities.fixed_voices,
+                },
+            })
+            .collect(),
         voices_url: String::new(),
         default_paths: vec![
             "macOS: ~/Library/Application Support/com.maxmelichov.mamborambo/models".to_string(),
@@ -412,7 +403,10 @@ async fn download_blue_bundle(app: tauri::AppHandle) -> Result<ModelBundle, Stri
             .map(|file| remote_content_length(&client, &file.url)),
     )
     .await;
-    let total = totals.into_iter().collect::<Option<Vec<_>>>().map(|items| items.into_iter().sum());
+    let total = totals
+        .into_iter()
+        .collect::<Option<Vec<_>>>()
+        .map(|items| items.into_iter().sum());
     let mut downloaded = 0_u64;
     for file in source.files {
         let destination = dir.join(&file.name);

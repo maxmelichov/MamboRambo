@@ -85,7 +85,10 @@ impl RunnerProcess {
         };
         if signal.status != "ready" {
             kill_child(&mut child);
-            return Err(format!("unexpected MamboRambo server status: {}", signal.status));
+            return Err(format!(
+                "unexpected MamboRambo server status: {}",
+                signal.status
+            ));
         }
 
         let client = match reqwest::Client::builder().no_proxy().build() {

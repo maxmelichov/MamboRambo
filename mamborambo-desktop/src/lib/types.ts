@@ -1,6 +1,6 @@
 export type ModelBundle = {
   installed: boolean;
-  runtime: "blue";
+  runtime: string;
   model_path: string;
   codec_path: string;
   voices_path?: string;
@@ -16,7 +16,7 @@ export type ModelSourceFile = {
 };
 
 export type ModelSource = {
-  id: "blue";
+  id: string;
   name: string;
   version: string;
   size: string;
@@ -24,6 +24,14 @@ export type ModelSource = {
   files: ModelSourceFile[];
   archive_url?: string | null;
   directory: string;
+  capabilities: RuntimeCapabilities;
+};
+
+export type RuntimeCapabilities = {
+  hebrew: boolean;
+  streaming: boolean;
+  voice_reference: boolean;
+  fixed_voices: boolean;
 };
 
 export type ModelSources = {

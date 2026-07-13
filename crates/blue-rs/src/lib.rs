@@ -158,7 +158,12 @@ impl BlueTts {
                 let mut audio = Vec::new();
                 let last_idx = chunks.len().saturating_sub(1);
                 for (idx, chunk) in chunks.iter().enumerate() {
-                    audio.extend(self.synthesize_chunk(chunk, style, &opts, seed.wrapping_add(idx as u64))?);
+                    audio.extend(self.synthesize_chunk(
+                        chunk,
+                        style,
+                        &opts,
+                        seed.wrapping_add(idx as u64),
+                    )?);
                     if idx != last_idx {
                         append_silence(&mut audio, self.sample_rate(), chunking.silence_seconds);
                     }
@@ -187,37 +192,52 @@ impl BlueTts {
         let mut output = Vec::new();
         let mut previous_was_reference = false;
         let base_seed = rand::random::<u64>();
+        let chunking = opts.chunking.clone().unwrap_or(ChunkingOptions {
+            enabled: true,
+            silence_seconds: 0.15,
+            max_chars: Some(200),
+        });
 
-        for (index, segment) in segments.iter().enumerate() {
+        for (segment_index, segment) in segments.iter().enumerate() {
             if segment.text.is_empty() {
                 continue;
             }
-            let phonemes = phonemizer.g2p(&segment.text, language)?;
-            if phonemes.is_empty() {
-                continue;
-            }
             let mut segment_opts = opts.clone();
+            segment_opts.chunking = None;
             if segment.is_reference_code {
                 segment_opts.speed *= REFERENCE_CODE_SPEED_SCALE;
             }
-            let audio = self.create_seeded(
-                &phonemes,
-                style,
-                segment_opts,
-                base_seed.wrapping_add(index as u64),
-            )?;
-            if !output.is_empty() {
-                let gap = if segment.is_reference_code || previous_was_reference {
-                    REFERENCE_CODE_SILENCE
-                } else {
-                    opts.chunking
-                        .as_ref()
-                        .map_or(0.15, |chunking| chunking.silence_seconds)
-                };
-                append_silence(&mut output, self.sample_rate(), gap);
+            // Chunk raw text then phonemize each chunk (reference parity).
+            let raw_chunks = if chunking.enabled {
+                chunking::split_text(&segment.text, chunking.max_chars.unwrap_or(200))
+            } else {
+                vec![segment.text.clone()]
+            };
+
+            for (chunk_index, raw_chunk) in raw_chunks.iter().enumerate() {
+                let chunk = phonemizer.g2p(raw_chunk, language)?;
+                if chunk.is_empty() {
+                    continue;
+                }
+                let audio = self.synthesize_chunk(
+                    &chunk,
+                    style,
+                    &segment_opts,
+                    base_seed
+                        .wrapping_add((segment_index as u64) << 32)
+                        .wrapping_add(chunk_index as u64),
+                )?;
+                if !output.is_empty() {
+                    let gap = if segment.is_reference_code || previous_was_reference {
+                        REFERENCE_CODE_SILENCE
+                    } else {
+                        chunking.silence_seconds
+                    };
+                    append_silence(&mut output, self.sample_rate(), gap);
+                }
+                output.extend(audio);
+                previous_was_reference = segment.is_reference_code;
             }
-            output.extend(audio);
-            previous_was_reference = segment.is_reference_code;
         }
         Ok(normalize_generated_audio(output))
     }
@@ -254,27 +274,33 @@ impl BlueTts {
             if segment.text.is_empty() {
                 continue;
             }
-            let phonemes = phonemizer.g2p(&segment.text, language)?;
-            if phonemes.is_empty() {
-                continue;
-            }
             let mut segment_opts = opts.clone();
             segment_opts.chunking = None;
             if segment.is_reference_code {
                 segment_opts.speed *= REFERENCE_CODE_SPEED_SCALE;
             }
-            let chunks = if chunking.enabled {
-                chunking::split_phonemes(&phonemes, chunking.max_chars)
+            // Chunk the raw text (not the phonemes) and phonemize each chunk,
+            // exactly like the reference pipeline. Splitting phonemes over-splits
+            // short inputs into tiny trailing fragments the vocoder renders as
+            // noise; chunking raw text keeps short inputs whole.
+            let raw_chunks = if chunking.enabled {
+                chunking::split_text(&segment.text, chunking.max_chars.unwrap_or(200))
             } else {
-                vec![phonemes]
+                vec![segment.text.clone()]
             };
 
-            for (chunk_index, chunk) in chunks.iter().enumerate() {
+            for (chunk_index, raw_chunk) in raw_chunks.iter().enumerate() {
+                let chunk = phonemizer.g2p(raw_chunk, language)?;
+                if chunk.is_empty() {
+                    continue;
+                }
                 let mut audio = self.synthesize_chunk(
-                    chunk,
+                    &chunk,
                     style,
                     &segment_opts,
-                    base_seed.wrapping_add((segment_index as u64) << 32).wrapping_add(chunk_index as u64),
+                    base_seed
+                        .wrapping_add((segment_index as u64) << 32)
+                        .wrapping_add(chunk_index as u64),
                 )?;
                 if !output.is_empty() {
                     let gap = if segment.is_reference_code || previous_was_reference {
@@ -354,9 +380,12 @@ impl BlueTts {
         })?;
         let wav = output_array3(&wav[0])?;
         let mut audio: Vec<f32> = wav.iter().copied().collect();
-        let trim = self.geometry.base_chunk_size * self.geometry.chunk_compress_factor;
-        if audio.len() > 2 * trim {
-            audio = audio[trim..audio.len() - trim].to_vec();
+        // Match the reference pipeline exactly: drop one full latent frame from
+        // each end. The trailing frame is the vocoder's noisy edge; removing it
+        // is what keeps the end of every chunk (and the final chunk) clean.
+        let frame_len = self.geometry.base_chunk_size * self.geometry.chunk_compress_factor;
+        if audio.len() > 2 * frame_len {
+            audio = audio[frame_len..audio.len() - frame_len].to_vec();
         }
         Ok(audio)
     }
@@ -431,9 +460,7 @@ fn sample_noisy_latent(
             geometry.latent_dim * geometry.chunk_compress_factor,
             latent_len,
         ),
-        |_| {
-        normal.sample(&mut rng)
-    },
+        |_| normal.sample(&mut rng),
     );
     let mut mask = Array3::zeros((1, 1, latent_len));
     for index in 0..valid_latent_len {
@@ -466,7 +493,10 @@ fn normalize_generated_audio(mut audio: Vec<f32>) -> Vec<f32> {
     if audio.is_empty() || audio.iter().any(|sample| !sample.is_finite()) {
         return audio;
     }
-    let peak = audio.iter().map(|sample| sample.abs()).fold(0.0f32, f32::max);
+    let peak = audio
+        .iter()
+        .map(|sample| sample.abs())
+        .fold(0.0f32, f32::max);
     if peak < 1e-6 {
         return audio;
     }
@@ -477,7 +507,8 @@ fn normalize_generated_audio(mut audio: Vec<f32>) -> Vec<f32> {
         .filter(|sample| sample.abs() > threshold)
         .collect();
     let source = if active.is_empty() { &audio } else { &active };
-    let rms = (source.iter().map(|sample| sample * sample).sum::<f32>() / source.len() as f32).sqrt();
+    let rms =
+        (source.iter().map(|sample| sample * sample).sum::<f32>() / source.len() as f32).sqrt();
     if rms < 1e-6 {
         return audio;
     }
@@ -508,7 +539,8 @@ fn load_geometry(path: impl AsRef<Path>) -> Result<ModelGeometry> {
         .unwrap_or(geometry.base_chunk_size as u64) as usize;
     geometry.chunk_compress_factor = json["ttl"]["chunk_compress_factor"]
         .as_u64()
-        .unwrap_or(geometry.chunk_compress_factor as u64) as usize;
+        .unwrap_or(geometry.chunk_compress_factor as u64)
+        as usize;
     geometry.latent_dim = json["ttl"]["latent_dim"]
         .as_u64()
         .unwrap_or(geometry.latent_dim as u64) as usize;

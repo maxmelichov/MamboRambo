@@ -55,7 +55,8 @@ pub fn language_display_name(language: &str) -> String {
 pub fn language_code_alias(language: &str) -> String {
     match language.trim().to_lowercase().as_str() {
         "auto" => "auto".into(),
-        "english" | "american english" | "american" | "british english" | "british" | "en-us" | "en-gb" => "en".into(),
+        "english" | "american english" | "american" | "british english" | "british" | "en-us"
+        | "en-gb" => "en".into(),
         "hebrew" => "he".into(),
         "spanish" => "es".into(),
         "german" => "de".into(),

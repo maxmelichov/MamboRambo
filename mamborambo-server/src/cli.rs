@@ -57,7 +57,8 @@ pub async fn run() -> Result<()> {
                 };
                 server
                     .load_model(LoadParams {
-                        blue: RuntimeParams::Blue {
+                        runtime: mamborambo_registry::DEFAULT_RUNTIME_ID.into(),
+                        params: RuntimeParams::Blue {
                             model_dir,
                             renikud_path,
                         },

@@ -34,8 +34,14 @@ pub struct VoicesResponse {
 
 #[derive(Debug, Deserialize)]
 pub struct LoadModelRequest {
+    #[serde(default = "default_runtime")]
+    pub runtime: String,
     pub model_path: String,
     pub renikud_path: String,
+}
+
+fn default_runtime() -> String {
+    mamborambo_registry::DEFAULT_RUNTIME_ID.into()
 }
 
 #[derive(Debug, Deserialize)]

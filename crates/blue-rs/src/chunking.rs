@@ -31,6 +31,63 @@ pub(crate) fn split_phonemes(input: &str, max_chars: Option<usize>) -> Vec<Strin
     chunks
 }
 
+/// Split raw (pre-phonemization) text into chunks, mirroring the reference
+/// `chunk_text`: break into sentences, then greedily combine consecutive
+/// sentences up to `max_chars`, hard-splitting any single sentence that is
+/// still too long. Chunking raw text (not phonemes) is what keeps short inputs
+/// as a single clean chunk instead of over-splitting into tiny trailing
+/// fragments that the vocoder renders as noise.
+pub(crate) fn split_text(input: &str, max_chars: usize) -> Vec<String> {
+    let input = input.trim();
+    if input.is_empty() {
+        return Vec::new();
+    }
+    if max_chars == 0 {
+        return vec![input.to_string()];
+    }
+
+    let mut chunks = Vec::new();
+    for paragraph in input.split("\n\n") {
+        let paragraph = paragraph.trim();
+        if paragraph.is_empty() {
+            continue;
+        }
+        let mut current = String::new();
+        let mut current_len = 0;
+        for sentence in split_sentences_text(paragraph) {
+            let sentence = sentence.trim();
+            if sentence.is_empty() {
+                continue;
+            }
+            let sentence_len = sentence.chars().count();
+            let separator = usize::from(!current.is_empty());
+            if current_len + separator + sentence_len <= max_chars {
+                if !current.is_empty() {
+                    current.push(' ');
+                    current_len += 1;
+                }
+                current.push_str(sentence);
+                current_len += sentence_len;
+            } else {
+                if !current.is_empty() {
+                    chunks.push(std::mem::take(&mut current));
+                    current_len = 0;
+                }
+                if sentence_len > max_chars {
+                    chunks.extend(hard_split_words(sentence, max_chars));
+                } else {
+                    current = sentence.to_string();
+                    current_len = sentence_len;
+                }
+            }
+        }
+        if !current.is_empty() {
+            chunks.push(current);
+        }
+    }
+    chunks
+}
+
 pub(crate) fn append_silence(audio: &mut Vec<f32>, sample_rate: u32, seconds: f32) {
     let n = (seconds.max(0.0) * sample_rate as f32).round() as usize;
     audio.extend(std::iter::repeat_n(0.0, n));
@@ -159,6 +216,76 @@ fn hard_split_token(token: &str, max_chars: usize) -> Vec<String> {
     chunks
 }
 
+/// Split raw text into sentences after `.`/`!`/`?`/`…` when followed by
+/// whitespace or end-of-text. Punctuation stays with the preceding sentence,
+/// and a boundary mark hugged by a digit (a decimal) is never a split point.
+fn split_sentences_text(input: &str) -> Vec<String> {
+    let mut sentences = Vec::new();
+    let mut start = 0;
+    let chars: Vec<(usize, char)> = input.char_indices().collect();
+    for (position, &(index, character)) in chars.iter().enumerate() {
+        if matches!(character, '.' | '!' | '?' | '…') {
+            let next_is_break = chars
+                .get(position + 1)
+                .map_or(true, |&(_, next)| next.is_whitespace());
+            if next_is_break {
+                let end = index + character.len_utf8();
+                push_trimmed(&mut sentences, &input[start..end]);
+                start = end;
+            }
+        }
+    }
+    push_trimmed(&mut sentences, &input[start..]);
+    sentences
+}
+
+/// Break an overlong sentence on word boundaries, only ever character-splitting
+/// a single word that itself exceeds `max_chars`.
+fn hard_split_words(sentence: &str, max_chars: usize) -> Vec<String> {
+    let mut chunks = Vec::new();
+    let mut current = String::new();
+    let mut current_len = 0;
+
+    for word in sentence.split_whitespace() {
+        let word_len = word.chars().count();
+        let separator = usize::from(!current.is_empty());
+        if !current.is_empty() && current_len + separator + word_len > max_chars {
+            chunks.push(std::mem::take(&mut current));
+            current_len = 0;
+        }
+        if word_len > max_chars {
+            if !current.is_empty() {
+                chunks.push(std::mem::take(&mut current));
+                current_len = 0;
+            }
+            let mut piece = String::new();
+            let mut piece_len = 0;
+            for character in word.chars() {
+                if piece_len >= max_chars {
+                    chunks.push(std::mem::take(&mut piece));
+                    piece_len = 0;
+                }
+                piece.push(character);
+                piece_len += 1;
+            }
+            if !piece.is_empty() {
+                chunks.push(piece);
+            }
+            continue;
+        }
+        if !current.is_empty() {
+            current.push(' ');
+            current_len += 1;
+        }
+        current.push_str(word);
+        current_len += word_len;
+    }
+    if !current.is_empty() {
+        chunks.push(current);
+    }
+    chunks
+}
+
 fn push_trimmed(items: &mut Vec<String>, value: &str) {
     let value = value.trim();
     if !value.is_empty() {
@@ -183,6 +310,32 @@ mod tests {
     #[test]
     fn returns_empty_for_empty_input() {
         assert!(split_phonemes("   ", Some(200)).is_empty());
+    }
+
+    #[test]
+    fn split_text_combines_short_sentences_into_one_chunk() {
+        // Two short sentences well under the limit stay together, so a short
+        // input is a single clean chunk with no tiny trailing fragment.
+        let chunks = super::split_text("First one. Second one.", 200);
+        assert_eq!(chunks, ["First one. Second one."]);
+    }
+
+    #[test]
+    fn split_text_breaks_when_over_the_limit() {
+        let chunks = super::split_text("aaaa. bbbb. cccc.", 10);
+        assert_eq!(chunks, ["aaaa.", "bbbb.", "cccc."]);
+    }
+
+    #[test]
+    fn split_text_keeps_decimals_intact() {
+        let chunks = super::split_text("Pi is 3.14 today.", 200);
+        assert_eq!(chunks, ["Pi is 3.14 today."]);
+    }
+
+    #[test]
+    fn split_text_hard_splits_a_single_overlong_sentence() {
+        let chunks = super::split_text("alpha beta gamma delta", 11);
+        assert_eq!(chunks, ["alpha beta", "gamma delta"]);
     }
 
     #[test]
@@ -215,9 +368,11 @@ mod tests {
     fn preserves_language_tags_when_packing_words() {
         let chunks = split_phonemes("<en>həˈloʊ</en> <he>ʃaˈlom</he>", Some(18));
         assert_eq!(chunks, ["<en>həˈloʊ</en>", "<he>ʃaˈlom</he>"]);
-        assert!(chunks
-            .iter()
-            .all(|chunk| chunk.matches('<').count() == chunk.matches('>').count()));
+        assert!(
+            chunks
+                .iter()
+                .all(|chunk| chunk.matches('<').count() == chunk.matches('>').count())
+        );
     }
 
     #[test]
@@ -232,11 +387,15 @@ mod tests {
     fn hard_split_never_cuts_inside_a_tag_literal() {
         let chunks = split_phonemes("aa<en>tag</en>bbbb", Some(5));
         assert_eq!(chunks, ["aa", "<en>t", "ag", "</en>", "bbbb"]);
-        assert!(chunks
-            .iter()
-            .all(|chunk| !chunk.contains("<e") || chunk.contains("<en>")));
-        assert!(chunks
-            .iter()
-            .all(|chunk| !chunk.contains("</e") || chunk.contains("</en>")));
+        assert!(
+            chunks
+                .iter()
+                .all(|chunk| !chunk.contains("<e") || chunk.contains("<en>"))
+        );
+        assert!(
+            chunks
+                .iter()
+                .all(|chunk| !chunk.contains("</e") || chunk.contains("</en>"))
+        );
     }
 }

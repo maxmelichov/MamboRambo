@@ -16,8 +16,9 @@ pub async fn load_model_request(
     request: LoadModelRequest,
 ) -> Result<serde_json::Value, String> {
     let (client, base_url) = runner_client(&app, &state)?;
-    let runtime = "blue";
+    let runtime = request.runtime.clone();
     let body = serde_json::json!({
+        "runtime": runtime.clone(),
         "model_path": request.model_path,
         "renikud_path": request.renikud_path,
     });
@@ -149,6 +150,26 @@ async fn stream_speech_response(
     output_path: &str,
     props: serde_json::Value,
 ) -> Result<(), String> {
+    let is_wav = response
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|content_type| content_type.starts_with("audio/wav"));
+    if is_wav {
+        let wav = response.bytes().await.map_err(|err| {
+            analytics::track_error(
+                app,
+                analytics::events::ERROR_SYNTHESIS_FAILED,
+                format!("failed to read synthesized audio: {err}"),
+                props,
+            )
+        })?;
+        tokio::fs::write(output_path, wav)
+            .await
+            .map_err(|err| format!("failed to write generated audio {output_path}: {err}"))?;
+        return Ok(());
+    }
+
     const MAX_FRAME_BYTES: usize = 128 * 1024 * 1024;
     let mut stream = response.bytes_stream();
     let mut pending = Vec::<u8>::new();
@@ -168,7 +189,8 @@ async fn stream_speech_response(
 
         while pending.len() >= 5 {
             let kind = pending[0];
-            let length = u32::from_be_bytes([pending[1], pending[2], pending[3], pending[4]]) as usize;
+            let length =
+                u32::from_be_bytes([pending[1], pending[2], pending[3], pending[4]]) as usize;
             if length > MAX_FRAME_BYTES {
                 return Err(analytics::track_error(
                     app,
@@ -194,9 +216,11 @@ async fn stream_speech_response(
                         .map_err(|err| format!("failed to emit streamed audio chunk: {err}"))?;
                 }
                 2 => {
-                    tokio::fs::write(output_path, payload).await.map_err(|err| {
-                        format!("failed to write final audio {output_path}: {err}")
-                    })?;
+                    tokio::fs::write(output_path, payload)
+                        .await
+                        .map_err(|err| {
+                            format!("failed to write final audio {output_path}: {err}")
+                        })?;
                     complete = true;
                 }
                 3 => {
@@ -218,7 +242,10 @@ async fn stream_speech_response(
 
 fn chunk_output_path(output_path: &str, index: usize) -> String {
     let path = std::path::Path::new(output_path);
-    let stem = path.file_stem().and_then(|value| value.to_str()).unwrap_or("speech");
+    let stem = path
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .unwrap_or("speech");
     path.with_file_name(format!("{stem}-chunk-{index:04}.wav"))
         .as_os_str()
         .to_string_lossy()

@@ -107,7 +107,8 @@ pub fn contains_nikud(text: &str) -> bool {
 
 /// Remove internal slow-segment markers before displaying prepared text.
 pub fn strip_reference_code_markers(text: &str) -> String {
-    text.replace(REF_CODE_MARK_OPEN, "").replace(REF_CODE_MARK_CLOSE, "")
+    text.replace(REF_CODE_MARK_OPEN, "")
+        .replace(REF_CODE_MARK_CLOSE, "")
 }
 
 /// Split prepared text into ordinary and slow reference-code segments.
@@ -153,10 +154,17 @@ pub fn split_prepared_by_reference_codes(text: &str) -> Vec<PreparedSegment> {
 
     let mut merged: Vec<PreparedSegment> = Vec::new();
     for segment in segments {
-        if segment.text.chars().all(|c| matches!(c, '.' | '!' | '?' | ',' | ';' | ':' | '…'))
+        if segment
+            .text
+            .chars()
+            .all(|c| matches!(c, '.' | '!' | '?' | ',' | ';' | ':' | '…'))
             && !merged.is_empty()
         {
-            merged.last_mut().expect("not empty").text.push_str(&segment.text);
+            merged
+                .last_mut()
+                .expect("not empty")
+                .text
+                .push_str(&segment.text);
         } else {
             merged.push(segment);
         }
@@ -299,7 +307,11 @@ pub fn normalize_for_speech(text: &str) -> String {
     text = normalize_hebrew_punctuation(&text);
     text = list
         .replace_all(&text, |caps: &Captures| {
-            format!("{}{}. ", &caps[1], list_number(caps[2].parse().unwrap_or(0)))
+            format!(
+                "{}{}. ",
+                &caps[1],
+                list_number(caps[2].parse().unwrap_or(0))
+            )
         })
         .into_owned();
     text = email
@@ -359,7 +371,8 @@ fn canonical_lang(lang: &str) -> String {
 fn strip_helper_markup(text: &str) -> String {
     let block = Regex::new(r"(?is)<lang_list\b[^>]*>.*?</lang_list>").expect("valid regex");
     let tag = Regex::new(r"(?i)</?lang_list\b[^>]*>").expect("valid regex");
-    tag.replace_all(&block.replace_all(text, " "), " ").into_owned()
+    tag.replace_all(&block.replace_all(text, " "), " ")
+        .into_owned()
 }
 
 fn normalize_common_text(text: &str) -> String {
@@ -443,8 +456,7 @@ fn expand_alphanumeric_codes(text: &str, lang: &str) -> String {
 }
 
 fn expand_list_markers(text: &str, lang: &str) -> String {
-    let list = Regex::new(r"(?m)(^|[^\d/])(\d{1,2})\.\s+")
-        .expect("valid regex");
+    let list = Regex::new(r"(?m)(^|[^\d/])(\d{1,2})\.\s+").expect("valid regex");
     list.replace_all(text, |caps: &Captures| {
         let n: u8 = caps[2].parse().unwrap_or_default();
         let word = if lang == "he" {
@@ -475,7 +487,11 @@ fn expand_phone_numbers(text: &str) -> String {
     phone
         .replace_all(text, |caps: &Captures| {
             let raw = &caps[0];
-            let prefix = if raw.starts_with('*') { "כוכבית " } else { "" };
+            let prefix = if raw.starts_with('*') {
+                "כוכבית "
+            } else {
+                ""
+            };
             mark_slow_segment(format!("{prefix}{}", spell_digits(raw)))
         })
         .into_owned()
@@ -489,7 +505,11 @@ fn expand_times(text: &str) -> String {
         let spoken = if minute == 0 {
             number_to_words(hour, "he")
         } else {
-            format!("{} ו{}", number_to_words(hour, "he"), number_to_words(minute, "he"))
+            format!(
+                "{} ו{}",
+                number_to_words(hour, "he"),
+                number_to_words(minute, "he")
+            )
         };
         mark_slow_segment(spoken)
     })
@@ -506,8 +526,19 @@ fn expand_dates(text: &str) -> String {
             year += if year < 70 { 2000 } else { 1900 };
         }
         let ordinals = [
-            "", "לראשון", "לשני", "לשלישי", "לרביעי", "לחמישי", "לשישי", "לשביעי",
-            "לשמיני", "לתשיעי", "לעשירי", "לאחד עשר", "לשנים עשר",
+            "",
+            "לראשון",
+            "לשני",
+            "לשלישי",
+            "לרביעי",
+            "לחמישי",
+            "לשישי",
+            "לשביעי",
+            "לשמיני",
+            "לתשיעי",
+            "לעשירי",
+            "לאחד עשר",
+            "לשנים עשר",
         ];
         if !(1..=31).contains(&day) || month == 0 || month >= ordinals.len() {
             caps[0].to_owned()
@@ -555,10 +586,19 @@ fn expand_numbers(text: &str, lang: &str) -> String {
         .replace_all(text, |caps: &Captures| {
             let raw = &caps[0];
             if raw.contains(['.', ',']) {
-                let separator = if lang == "he" { " נקודה " } else { " point " };
+                let separator = if lang == "he" {
+                    " נקודה "
+                } else {
+                    " point "
+                };
                 raw.replace(['.', ','], separator)
                     .split_whitespace()
-                    .map(|piece| piece.parse::<u16>().ok().map_or_else(|| piece.to_owned(), |n| number_to_words(n, lang)))
+                    .map(|piece| {
+                        piece
+                            .parse::<u16>()
+                            .ok()
+                            .map_or_else(|| piece.to_owned(), |n| number_to_words(n, lang))
+                    })
                     .collect::<Vec<_>>()
                     .join(" ")
             } else {
@@ -587,7 +627,11 @@ fn strip_silent_separator_tokens(text: &str) -> String {
         .expect("valid regex")
         .replace_all(&text, " ")
         .into_owned();
-    Regex::new(r"\s+").expect("valid regex").replace_all(&text, " ").trim().to_owned()
+    Regex::new(r"\s+")
+        .expect("valid regex")
+        .replace_all(&text, " ")
+        .trim()
+        .to_owned()
 }
 
 /// Prepare one sentence.
@@ -611,9 +655,9 @@ pub fn prepare_text(
         });
     }
 
-    let phonikud = phonikud.as_deref_mut().ok_or_else(|| {
-        anyhow::anyhow!("niqqud input requires a Phonikud-compatible phonemizer")
-    })?;
+    let phonikud = phonikud
+        .as_deref_mut()
+        .ok_or_else(|| anyhow::anyhow!("niqqud input requires a Phonikud-compatible phonemizer"))?;
     let (phonetic_text, phonetic_spans) = replace_nikud_words(&normalized, phonikud, renikud)?;
     Ok(PreparedText {
         original: text.to_owned(),
@@ -651,9 +695,7 @@ fn replace_nikud_words_inner(
         if !word.is_empty() {
             if contains_nikud(&word) {
                 let span = match renikud.as_mut() {
-                    Some(engine) => {
-                        phonemize_nikud_word(&word, phonikud, Some(&mut **engine))?
-                    }
+                    Some(engine) => phonemize_nikud_word(&word, phonikud, Some(&mut **engine))?,
                     None => phonemize_nikud_word(&word, phonikud, None)?,
                 };
                 output.push_str(&span.ipa);
@@ -842,8 +884,21 @@ fn spell_digits(text: &str) -> String {
 
 fn spell_digits_lang(text: &str, lang: &str) -> String {
     let words = match lang {
-        "he" => ["אפס", "אחת", "שתיים", "שלוש", "ארבע", "חמש", "שש", "שבע", "שמונה", "תשע"],
-        _ => ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"],
+        "he" => [
+            "אפס",
+            "אחת",
+            "שתיים",
+            "שלוש",
+            "ארבע",
+            "חמש",
+            "שש",
+            "שבע",
+            "שמונה",
+            "תשע",
+        ],
+        _ => [
+            "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
+        ],
     };
     text.chars()
         .filter_map(|digit| digit.to_digit(10).map(|digit| words[digit as usize]))
@@ -879,15 +934,41 @@ fn number_to_words(number: u16, lang: &str) -> String {
         };
     }
     let units = [
-        "אפס", "אחת", "שתיים", "שלוש", "ארבע", "חמש", "שש", "שבע", "שמונה", "תשע",
-        "עשר", "אחת עשרה", "שתים עשרה", "שלוש עשרה", "ארבע עשרה", "חמש עשרה",
-        "שש עשרה", "שבע עשרה", "שמונה עשרה", "תשע עשרה",
+        "אפס",
+        "אחת",
+        "שתיים",
+        "שלוש",
+        "ארבע",
+        "חמש",
+        "שש",
+        "שבע",
+        "שמונה",
+        "תשע",
+        "עשר",
+        "אחת עשרה",
+        "שתים עשרה",
+        "שלוש עשרה",
+        "ארבע עשרה",
+        "חמש עשרה",
+        "שש עשרה",
+        "שבע עשרה",
+        "שמונה עשרה",
+        "תשע עשרה",
     ];
     if number < 20 {
         return units[number as usize].to_owned();
     }
     let tens = [
-        "", "", "עשרים", "שלושים", "ארבעים", "חמישים", "שישים", "שבעים", "שמונים", "תשעים",
+        "",
+        "",
+        "עשרים",
+        "שלושים",
+        "ארבעים",
+        "חמישים",
+        "שישים",
+        "שבעים",
+        "שמונים",
+        "תשעים",
     ];
     if number < 100 {
         let ten = number / 10;
@@ -968,9 +1049,7 @@ fn is_hebrew_letter(character: char) -> bool {
 }
 
 fn is_hebrew_word_character(character: char) -> bool {
-    is_hebrew_letter(character)
-        || is_nikud(character)
-        || matches!(character, '׳' | '״' | '|')
+    is_hebrew_letter(character) || is_nikud(character) || matches!(character, '׳' | '״' | '|')
 }
 
 fn normalize_spaces(text: &str) -> String {
@@ -984,8 +1063,7 @@ mod tests {
     #[test]
     fn keeps_nikud_in_text_path() {
         let mut phonikud = |word: &str| Ok(format!("ipa:{word}"));
-        let prepared =
-            prepare_text("הַמְּנוֹרָה מאירה.", Some(&mut phonikud), None, true).unwrap();
+        let prepared = prepare_text("הַמְּנוֹרָה מאירה.", Some(&mut phonikud), None, true).unwrap();
         assert!(contains_nikud(&prepared.text));
         assert_eq!(prepared.for_input(InputMode::Text), "הַמְּנוֹרָה מאירה.");
         assert_eq!(prepared.phonetic_text, "ipa:הַמְּנוֹרָה מאירה.");
@@ -1008,12 +1086,7 @@ mod tests {
             assert!(!contains_nikud(plain));
             Ok("menora".to_owned())
         };
-        let span = phonemize_nikud_word(
-            "מְנוֹרָה",
-            &mut phonikud,
-            Some(&mut renikud),
-        )
-        .unwrap();
+        let span = phonemize_nikud_word("מְנוֹרָה", &mut phonikud, Some(&mut renikud)).unwrap();
         assert_eq!(span.phonikud_ipa, "menˈora");
         assert_eq!(span.renikud_ipa.as_deref(), Some("menora"));
         assert_eq!(span.ipa, "menˈora");
@@ -1055,7 +1128,13 @@ mod tests {
     #[test]
     fn expands_dialogue_and_list_markers() {
         let text = prepare_text_for_synthesis("1. אמר \"שלום\"", "he");
-        assert!(text.starts_with("אחד."), "unexpected prepared text: {text:?}");
-        assert!(text.contains("אמר, שלום."), "unexpected prepared text: {text:?}");
+        assert!(
+            text.starts_with("אחד."),
+            "unexpected prepared text: {text:?}"
+        );
+        assert!(
+            text.contains("אמר, שלום."),
+            "unexpected prepared text: {text:?}"
+        );
     }
 }

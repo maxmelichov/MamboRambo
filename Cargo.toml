@@ -6,6 +6,7 @@ members = [
     "crates/espeak-rs-sys",
     "crates/ggml-rs-sys",
     "crates/blue-rs",
+    "crates/mamborambo-registry",
 ]
 resolver = "2"
 

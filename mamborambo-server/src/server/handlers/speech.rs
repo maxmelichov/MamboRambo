@@ -8,10 +8,7 @@ use axum::{
 use futures_util::stream;
 
 use super::super::{
-    dto::SpeechBody,
-    errors::write_error,
-    state::SharedServer,
-    util::first_non_empty,
+    dto::SpeechBody, errors::write_error, state::SharedServer, util::first_non_empty,
 };
 
 #[utoipa::path(
@@ -69,9 +66,12 @@ pub async fn speech(State(server): State<SharedServer>, Json(body): Json<SpeechB
                 "no model loaded",
             );
         };
-        if let Err(err) =
-            ctx.synthesize_to_file(&body.input, (!voice.is_empty()).then_some(voice.as_str()), &out_path, &body.language)
-        {
+        if let Err(err) = ctx.synthesize_to_file(
+            &body.input,
+            (!voice.is_empty()).then_some(voice.as_str()),
+            &out_path,
+            &body.language,
+        ) {
             return write_error(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "internal_error",
@@ -117,6 +117,12 @@ async fn streaming_wav_response(server: SharedServer, body: SpeechBody) -> Respo
         };
         let sample_rate = ctx.sample_rate();
         let mut send_chunk = |samples: &[f32], sample_rate: u32| -> anyhow::Result<()> {
+            // Text chunking can end with a separator-only segment. Do not send
+            // an empty WAV frame to clients, because it can interrupt queued
+            // playback without contributing any audio.
+            if samples.is_empty() {
+                return Ok(());
+            }
             let wav = wav_bytes(samples, sample_rate)?;
             tx.blocking_send(Ok(frame(1, wav)))
                 .map_err(|_| anyhow::anyhow!("streaming client disconnected"))
@@ -153,10 +159,9 @@ async fn streaming_wav_response(server: SharedServer, body: SpeechBody) -> Respo
         header::CONTENT_TYPE,
         HeaderValue::from_static("application/x-mamborambo-audio-chunks"),
     );
-    response.headers_mut().insert(
-        header::CACHE_CONTROL,
-        HeaderValue::from_static("no-store"),
-    );
+    response
+        .headers_mut()
+        .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
     response
 }
 

@@ -8,7 +8,8 @@ use crate::runtime::{BlueRuntime, Runtime, RuntimeParams};
 pub type SharedServer = Arc<Server>;
 
 pub struct LoadParams {
-    pub blue: RuntimeParams,
+    pub runtime: String,
+    pub params: RuntimeParams,
 }
 
 pub struct Server {
@@ -42,7 +43,7 @@ impl Server {
 
     pub async fn load_model(&self, params: LoadParams) -> Result<()> {
         let mut inner = self.inner.lock().await;
-        let (ctx, model_path, renikud_path): (Box<dyn Runtime>, _, _) = match params.blue {
+        let (ctx, model_path, renikud_path): (Box<dyn Runtime>, _, _) = match params.params {
             RuntimeParams::Blue {
                 model_dir,
                 renikud_path,
@@ -53,7 +54,7 @@ impl Server {
             ),
         };
         inner.ctx = Some(ctx);
-        inner.runtime = "blue".into();
+        inner.runtime = params.runtime;
         inner.model_name = model_path
             .file_name()
             .and_then(|name| name.to_str())

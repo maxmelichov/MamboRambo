@@ -1,69 +1,57 @@
 # Architecture
 
-MamboRambo is split into three layers: runtime crates, a Rust HTTP sidecar, and the Tauri desktop app.
+MamboRambo is a local-first TTS application for macOS, Windows, and Linux. It has three layers:
 
-## Runtime Crates
+```text
+React + Tauri desktop app
+        ↓ local HTTP
+mamborambo-server sidecar
+        ↓ Runtime trait
+TTS runtime crates and downloaded model bundles
+```
 
-Runtime code lives under `crates/`.
+The desktop never loads a native TTS runtime itself. It starts `mamborambo-server` as a sidecar, waits for its ready signal, and calls its local HTTP API.
 
-- `crates/qwentts-rs` loads Qwen GGUF model files, runs tokenization, generation, codec decoding, and WAV writing.
-- `crates/kokoro-rs` loads Kokoro ONNX model files, voices, phonemization data, and WAV writing.
-- `crates/ggml-rs-sys` builds or links the ggml/gguf native layer used by Qwen.
+## Runtime registry
 
-The old top-level `runtimes/` tree is no longer part of the build.
+`crates/mamborambo-registry` is the source of truth for all model metadata. A runtime manifest declares:
 
-## Server
+- its stable ID, display name, version, size, and install directory;
+- model files and download URLs;
+- files that must exist before it is considered installed;
+- UI and API capabilities: Hebrew support, streaming, reference-voice support, and fixed voices.
 
-`mamborambo-server/` is the local CLI and HTTP service. Its binary is named `mamborambo-server`.
+Both the desktop downloader and server `GET /v1/models/sources` build their catalog from this registry. This prevents the app and sidecar from advertising different models.
 
-Responsibilities:
+To add a model, add its manifest to the registry, implement a server `Runtime` adapter, add a `RuntimeParams` variant and loading validation, then package its native dependencies with the sidecar. The model picker reads the registry data; it does not need a hardcoded card per runtime.
 
-- Provide `mamborambo-server speak` for command-line synthesis.
-- Provide `mamborambo-server serve` for local HTTP usage.
-- Own model loading, runtime selection, request validation, and response formatting.
-- Expose the local API used by the desktop app.
+## Current runtime
 
-The desktop starts `mamborambo-server` as a sidecar subprocess and reads its ready signal from stdout.
+BlueTTS is the currently shipped runtime:
 
-## Desktop
+- Hebrew and English local synthesis;
+- streaming WAV output;
+- fixed `Rotem` and `Roi` voice styles;
+- no reference-voice cloning;
+- Renikud ONNX phonemization for Hebrew.
 
-`mamborambo-desktop/` is the Tauri + React app.
+Its bundle is installed in the application data directory under `models/blue-onnx-v2/` and requires the ONNX pipeline, voice embeddings, and `renikud.onnx`.
 
-Responsibilities:
+Qwen and Kokoro are not currently shipped runtimes. Historical code and documentation must not be interpreted as available functionality.
 
-- Own the user interface.
-- Download and locate model bundles.
-- Start and stop the `mamborambo-server` sidecar.
-- Call the local HTTP API for model loading, language/voice metadata, and synthesis.
+## Server API
 
-The desktop does not link directly to model runtimes.
+The sidecar owns runtime loading and inference:
 
-## Models
+- `POST /v1/models/load` accepts `runtime`, `model_path`, and runtime-specific fields. Blue requires `renikud_path`.
+- `GET /v1/models/sources` returns registered downloadable model manifests and capabilities.
+- `GET /v1/languages` and `GET /v1/voices` report metadata for the loaded runtime.
+- `POST /v1/audio/speech` returns framed streaming WAV data.
 
-Model files are stored outside git under the app data directory or under local ignored model directories during development.
+The streaming frame format is `[kind: u8][length: u32 big-endian][payload]`: kind `1` is a playable WAV chunk, `2` the final WAV, and `3` an error message.
 
-Qwen bundles contain:
+## Packaging
 
-- `qwen3-tts-model.gguf`
-- `qwen3-tts-codec.gguf`
+`scripts/pre_build.py` builds the sidecar for Tauri's target triple and places it in `mamborambo-desktop/src-tauri/binaries/`. It also stages ONNX Runtime libraries beside the sidecar and configures their platform loader paths. Tauri then bundles that sidecar and its native libraries into the desktop installer.
 
-Kokoro bundles contain:
-
-- `kokoro-v1.0.onnx`
-- `voices-v1.0.bin`
-- `espeak-ng-data/`
-
-## Release Flow
-
-Typical release order:
-
-1. Publish model bundles when model files change.
-2. Build and release `mamborambo-server` sidecars with `mamborambo-server-v*` tags.
-3. Build desktop packages that bundle the matching `mamborambo-server` sidecar.
-
-Server release artifacts:
-
-- `mamborambo-server-darwin-arm64.tar.gz`
-- `mamborambo-server-linux-x64.tar.gz`
-- `mamborambo-server-linux-arm64.tar.gz`
-- `mamborambo-server-windows-x64.zip`
+Dynamic native plugins are intentionally not used. They make code-signing, ABI compatibility, and bundled dependency resolution unsafe across three operating systems. Runtimes are compiled into a versioned sidecar; model assets remain independently downloadable.

@@ -6,9 +6,7 @@ use ort::session::Session;
 use regex::Regex;
 use renikud_rs::G2P;
 
-use crate::handling::{
-    NikudPhonemizer, contains_nikud, prepare_text_for_synthesis,
-};
+use crate::handling::{NikudPhonemizer, contains_nikud, prepare_text_for_synthesis};
 
 /// Languages supported by the BlueTTS model.
 ///
@@ -105,7 +103,9 @@ impl Phonemizer {
             mixed_re: Regex::new(
                 r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}|\d+[A-Za-z]+|[A-Za-z]+(?:[.'’\-][A-Za-z0-9]+)*",
             )?,
-            inline_tag_re: Regex::new(r"(?is)<(en|en-us|he|es|de|ge|it)>(.*?)</(?:en|en-us|he|es|de|ge|it)>")?,
+            inline_tag_re: Regex::new(
+                r"(?is)<(en|en-us|he|es|de|ge|it)>(.*?)</(?:en|en-us|he|es|de|ge|it)>",
+            )?,
             nikud: None,
         })
     }
@@ -123,7 +123,9 @@ impl Phonemizer {
             mixed_re: Regex::new(
                 r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}|\d+[A-Za-z]+|[A-Za-z]+(?:[.'’\-][A-Za-z0-9]+)*",
             )?,
-            inline_tag_re: Regex::new(r"(?is)<(en|en-us|he|es|de|ge|it)>(.*?)</(?:en|en-us|he|es|de|ge|it)>")?,
+            inline_tag_re: Regex::new(
+                r"(?is)<(en|en-us|he|es|de|ge|it)>(.*?)</(?:en|en-us|he|es|de|ge|it)>",
+            )?,
             nikud: None,
         })
     }
@@ -131,10 +133,7 @@ impl Phonemizer {
     /// Attach a Phonikud-compatible engine for niqqud-bearing Hebrew words.
     ///
     /// Niqqud is **not** stripped before this engine.
-    pub fn with_nikud_phonemizer(
-        mut self,
-        nikud: impl NikudPhonemizer + Send + 'static,
-    ) -> Self {
+    pub fn with_nikud_phonemizer(mut self, nikud: impl NikudPhonemizer + Send + 'static) -> Self {
         self.nikud = Some(Box::new(nikud));
         self
     }
@@ -207,11 +206,17 @@ impl Phonemizer {
         }
         if language != Language::Hebrew && !contains_hebrew(text) {
             let ipa = self.phonemize_espeak(text, language)?;
-            return Ok((!ipa.is_empty()).then_some((language, ipa)).into_iter().collect());
+            return Ok((!ipa.is_empty())
+                .then_some((language, ipa))
+                .into_iter()
+                .collect());
         }
         if language != Language::Hebrew || !contains_latin_or_digit(text) {
             let ipa = self.phonemize_non_latin(text)?;
-            return Ok((!ipa.is_empty()).then_some((language, ipa)).into_iter().collect());
+            return Ok((!ipa.is_empty())
+                .then_some((language, ipa))
+                .into_iter()
+                .collect());
         }
 
         let spans: Vec<(usize, usize)> = self
@@ -268,7 +273,12 @@ impl Phonemizer {
                     result.push(' ');
                 }
             }
-            result.push_str(&format!("<{}>{}</{}>", language.code(), ipa.trim(), language.code()));
+            result.push_str(&format!(
+                "<{}>{}</{}>",
+                language.code(),
+                ipa.trim(),
+                language.code()
+            ));
             previous = Some(language);
         }
         normalize_spaces(&result)
@@ -340,7 +350,10 @@ fn email_to_spoken_english(email: &str) -> String {
         .filter(|part| !part.is_empty())
         .map(|part| {
             if part.len() <= 2 && part.chars().all(|c| c.is_ascii_alphabetic()) {
-                part.chars().map(|c| c.to_string()).collect::<Vec<_>>().join(" ")
+                part.chars()
+                    .map(|c| c.to_string())
+                    .collect::<Vec<_>>()
+                    .join(" ")
             } else {
                 part.to_owned()
             }
