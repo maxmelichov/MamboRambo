@@ -149,10 +149,10 @@ export function EditorCard({
                         title={`${phoneme.symbol} — ${phoneme.name}`}
                         onClick={() => insertPhoneme(phoneme.symbol)}
                         disabled={busy}
-                        className="flex h-9 items-center gap-1 rounded-md border border-border/30 bg-white px-2 font-mono text-base text-primary transition-colors hover:border-primary hover:bg-primary hover:text-white disabled:opacity-50"
+                        className="flex h-12 items-center gap-2 rounded-md border border-border/30 bg-white px-3 font-mono text-xl text-primary transition-colors hover:border-primary hover:bg-primary hover:text-white disabled:opacity-50"
                       >
                         <span>{phoneme.symbol}</span>
-                        <span className="font-sans text-[9px] opacity-55">{phoneme.name}</span>
+                        <span className="font-sans text-[10px] opacity-55">{phoneme.name}</span>
                       </button>
                     ))}
                   </div>
