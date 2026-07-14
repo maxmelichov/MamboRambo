@@ -34,6 +34,51 @@ const hebrewPhonemeGroups = [
   },
 ] as const;
 
+const diacriticGroups = [
+  { label: "Vowels", marks: [["ְ", "Sheva"], ["ֱ", "Hataf Segol"], ["ֲ", "Hataf Patah"], ["ֳ", "Hataf Qamats"], ["ִ", "Hiriq"], ["ֵ", "Tsere"], ["ֶ", "Segol"], ["ַ", "Patah"], ["ָ", "Qamats"], ["ֹ", "Holam"], ["ֻ", "Qubuts"], ["ׇ", "Qamats Qatan"]] },
+  { label: "Letter marks", marks: [["ּ", "Dagesh"], ["ֿ", "Rafe"], ["ׁ", "Shin dot"], ["ׂ", "Sin dot"]] },
+  { label: "Pronunciation", marks: [["ֽ", "Meteg"], ["֫", "Hatama"]] },
+] as const;
+
+const vowelMarks = new Set<string>(diacriticGroups[0].marks.map(([mark]) => mark));
+const hebrewLetter = /[\u05d0-\u05ea]/;
+const hebrewMark = /[\u0591-\u05c7]/;
+
+function hebrewLetterClusters(text: string) {
+  const chars = Array.from(text);
+  const clusters: Array<{ start: number; value: string } | { value: string }> = [];
+  for (let index = 0; index < chars.length; index += 1) {
+    if (!hebrewLetter.test(chars[index])) {
+      clusters.push({ value: chars[index] });
+      continue;
+    }
+    let value = chars[index];
+    let end = index + 1;
+    while (end < chars.length && hebrewMark.test(chars[end])) {
+      value += chars[end];
+      end += 1;
+    }
+    clusters.push({ start: index, value });
+    index = end - 1;
+  }
+  return clusters;
+}
+
+function groupHebrewWords(clusters: ReturnType<typeof hebrewLetterClusters>) {
+  const words: Array<typeof clusters> = [];
+  let word: typeof clusters = [];
+  for (const cluster of clusters) {
+    if (!("start" in cluster) && !cluster.value.trim()) {
+      if (word.length) words.push(word);
+      word = [];
+    } else {
+      word.push(cluster);
+    }
+  }
+  if (word.length) words.push(word);
+  return words;
+}
+
 type EditorCardProps = {
   busy: boolean;
   text: string;
@@ -68,6 +113,8 @@ export function EditorCard({
   const [tab, setTab] = useState<"text" | "diacritics" | "phonemes">("text");
   const phonemeInput = useRef<HTMLTextAreaElement>(null);
   const [converting, setConverting] = useState(false);
+  const [editorError, setEditorError] = useState("");
+  const [selectedLetter, setSelectedLetter] = useState<number | null>(null);
   const isHebrew = language === "he" || (language === "auto" && /[\u0590-\u05ff]/.test(text));
   const textPlaceholder = isHebrew ? "הדביקו כאן טקסט בעברית..." : "Paste your text here...";
 
@@ -84,9 +131,12 @@ export function EditorCard({
 
   async function showRenikudOutput() {
     setConverting(true);
+    setEditorError("");
     try {
       await convertToPhonemes();
       setTab("phonemes");
+    } catch (error) {
+      setEditorError(String(error));
     } finally {
       setConverting(false);
     }
@@ -101,9 +151,31 @@ export function EditorCard({
     setTab("diacritics");
     if (!diacritics && text.trim()) {
       setConverting(true);
-      try { await addDiacritics(); } finally { setConverting(false); }
+      setEditorError("");
+      try { await addDiacritics(); } catch (error) { setEditorError(String(error)); } finally { setConverting(false); }
     }
   }
+
+  function changeDiacritic(mark: string, isVowel: boolean) {
+    if (selectedLetter === null) return;
+    const chars = Array.from(diacritics);
+    if (!hebrewLetter.test(chars[selectedLetter] ?? "")) return;
+    let end = selectedLetter + 1;
+    while (end < chars.length && hebrewMark.test(chars[end])) end += 1;
+    const existing = chars.slice(selectedLetter + 1, end);
+    const hasMark = existing.includes(mark);
+    const nextMarks = existing
+      .filter((current) => current !== mark)
+      .filter((current) => !(isVowel && vowelMarks.has(current)));
+    if (!hasMark) nextMarks.push(mark);
+    chars.splice(selectedLetter + 1, end - selectedLetter - 1, ...nextMarks);
+    setDiacritics(chars.join(""));
+    setSelectedLetter(selectedLetter);
+  }
+
+  const selectedCharacter = selectedLetter === null ? "" : Array.from(diacritics)[selectedLetter] ?? "";
+  const diacriticLetters = hebrewLetterClusters(diacritics);
+  const diacriticWords = groupHebrewWords(diacriticLetters);
 
   return (
     <Card className="relative overflow-hidden p-0 shadow-xl border-none">
@@ -146,6 +218,37 @@ export function EditorCard({
             <Button variant="outline" onClick={openDiacritics} disabled={busy || converting || !text.trim()} className="h-9 px-3 text-xs">{converting ? "Adding…" : "Refresh from text"}</Button>
           </div>
           <textarea value={diacritics} onChange={(event) => setDiacritics(event.currentTarget.value)} dir="rtl" lang="he" disabled={busy} className="min-h-48 w-full resize-y rounded-lg border border-border/50 bg-background/30 p-4 text-lg leading-relaxed text-primary outline-none focus:border-primary/50" />
+          {editorError && <p className="mt-3 text-xs text-red-600">{editorError}</p>}
+          <div className="mt-5 space-y-3">
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-secondary/40">Pick a letter in your vocalized text</p>
+            <div dir="rtl" className="flex flex-wrap items-center gap-3 rounded-lg border border-border/20 bg-background/20 p-3 leading-loose">
+              {diacriticWords.map((word, wordIndex) => (
+                <div key={wordIndex} className="flex items-center rounded-lg border border-border/20 bg-white p-1 shadow-sm">
+                  {word.map((cluster, index) => "start" in cluster ? (
+                    <button key={`${cluster.start}-${index}`} type="button" onClick={() => setSelectedLetter(cluster.start)} className={cn("grid h-11 min-w-9 place-items-center rounded-md px-1.5 text-2xl transition-colors", selectedLetter === cluster.start ? "bg-primary text-white" : "text-primary hover:bg-primary/10")}>{cluster.value}</button>
+                  ) : <span key={`symbol-${index}`} className="px-0.5 text-xl text-secondary/50">{cluster.value}</span>)}
+                </div>
+              ))}
+              {!diacritics && <span className="p-2 text-xs text-secondary/50">Add diacritics from the text first.</span>}
+            </div>
+            {selectedCharacter && (
+              <div className="space-y-3 rounded-lg border border-border/20 bg-background/20 p-3">
+                <p className="text-sm font-semibold text-primary">Editing <span className="text-2xl">{selectedCharacter}</span></p>
+                {diacriticGroups.map((group, groupIndex) => (
+                  <div key={group.label}>
+                    <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-secondary/45">{group.label}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {group.marks.map(([mark, name]) => (
+                        <button key={mark} type="button" title={name} onClick={() => changeDiacritic(mark, groupIndex === 0)} className="flex h-12 items-center gap-2 rounded-md border border-border/30 bg-white px-3 text-primary transition-colors hover:border-primary hover:bg-primary hover:text-white">
+                          <span className="text-xl">{selectedCharacter}{mark}</span><span className="text-[10px] opacity-55">{name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       ) : (
         <div className="bg-white p-8">
@@ -166,6 +269,7 @@ export function EditorCard({
             disabled={busy}
             className="min-h-32 w-full resize-y rounded-lg border border-border/50 bg-background/30 p-4 font-mono text-lg leading-relaxed text-primary outline-none focus:border-primary/50"
           />
+          {editorError && <p className="mt-3 text-xs text-red-600">{editorError}</p>}
           {isHebrew && (
           <div className="mt-5">
             <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-secondary/40">Hebrew phonemes</p>

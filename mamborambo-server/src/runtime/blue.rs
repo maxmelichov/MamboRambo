@@ -114,7 +114,15 @@ model = Phonikud(sys.argv[2])
 text = sys.stdin.read()
 vocalized = model.add_diacritics(text)
 print(vocalized if sys.argv[1] == "diacritize" else phonemize(vocalized))"#;
-        let mut child = Command::new("uv")
+        let uv = std::env::var("MAMBORAMBO_UV_PATH").unwrap_or_else(|_| {
+            let homebrew_uv = Path::new("/opt/homebrew/bin/uv");
+            if homebrew_uv.is_file() {
+                homebrew_uv.display().to_string()
+            } else {
+                "uv".to_owned()
+            }
+        });
+        let mut child = Command::new(uv)
             .args(["run", "--with", "phonikud==0.4.1", "--with", "phonikud-onnx", "python", "-c", script, mode])
             .arg(model)
             .stdin(Stdio::piped())
@@ -171,11 +179,31 @@ impl Runtime for BlueRuntime {
         language: &str,
         on_chunk: &mut dyn FnMut(&[f32], u32) -> Result<()>,
     ) -> Result<Vec<f32>> {
-        let (_language, language_code) = Self::language_for(text, language)?;
+        let (detected_language, language_code) = Self::language_for(text, language)?;
         let voice = Self::normalize_voice(voice.unwrap_or("Rotem"));
         let style = self.styles.get(voice).ok_or_else(|| {
             anyhow::anyhow!("unknown Blue voice `{voice}`; expected Rotem or Roi")
         })?;
+        if detected_language == Language::Hebrew && self.hebrew_g2p_engine == "phonikud" {
+            let phonemes = self.phonikud(text, "phonemize")?;
+            let audio = self.tts.create(
+                &phonemes,
+                style,
+                SynthesisOptions {
+                    lang: language_code.to_owned(),
+                    total_step: 8,
+                    cfg_scale: 4.0,
+                    speed: 0.95,
+                    chunking: Some(blue_rs::ChunkingOptions {
+                        enabled: true,
+                        silence_seconds: 0.15,
+                        max_chars: Some(200),
+                    }),
+                },
+            )?;
+            on_chunk(&audio, self.tts.sample_rate())?;
+            return Ok(audio);
+        }
         let sample_rate = self.tts.sample_rate();
         self.tts.synthesize_text_streaming(
             &mut self.phonemizer,
