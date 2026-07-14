@@ -13,6 +13,9 @@ const languageLabels: Record<string, string> = {
   auto: "Detect automatically",
   he: "Hebrew",
   en: "English",
+  de: "German",
+  es: "Spanish",
+  it: "Italian",
 };
 
 export function VoiceSettings({

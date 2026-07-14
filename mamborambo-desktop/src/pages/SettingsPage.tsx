@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { openPath } from "@tauri-apps/plugin-opener";
-import { ChevronRight, FolderOpen } from "lucide-react";
+import { Check, ChevronRight, FolderOpen, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import type { ModelBundle } from "../lib/types";
@@ -11,10 +11,28 @@ type SettingsPageProps = {
   bundle: ModelBundle | null;
   advancedMode: boolean;
   setAdvancedMode: (enabled: boolean) => void;
+  hebrewG2pEngine: string;
+  setHebrewG2pEngine: (engine: string) => void;
+  setPhonikudPath: (path: string) => void;
 };
 
-export function SettingsPage({ bundle, advancedMode, setAdvancedMode }: SettingsPageProps) {
+export function SettingsPage({ bundle, advancedMode, setAdvancedMode, hebrewG2pEngine, setHebrewG2pEngine, setPhonikudPath }: SettingsPageProps) {
   const [error, setError] = useState("");
+  const [downloadingPhonikud, setDownloadingPhonikud] = useState(false);
+
+  async function choosePhonikud() {
+    setDownloadingPhonikud(true);
+    setError("");
+    try {
+      const model = await invoke<{ path: string }>("download_phonikud_bundle");
+      setPhonikudPath(model.path);
+      setHebrewG2pEngine("phonikud");
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setDownloadingPhonikud(false);
+    }
+  }
 
   async function openModelsFolder() {
     setError("");
@@ -79,6 +97,40 @@ export function SettingsPage({ bundle, advancedMode, setAdvancedMode }: Settings
                   Reinstall Model
                   <ChevronRight className="h-3.5 w-3.5" />
                 </Link>
+              </div>
+            </Card>
+          </div>
+          <div className="space-y-4">
+            <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-secondary opacity-30">Hebrew G2P Engine</h3>
+            <Card className="space-y-5 border-none p-8 shadow-xl">
+              <div className="space-y-1">
+                <p className="text-base font-semibold tracking-tight text-primary">Hebrew pronunciation</p>
+                <p className="text-sm text-secondary/60">Select the engine that creates IPA before speech generation.</p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => setHebrewG2pEngine("renikud")}
+                  className={`relative rounded-xl border p-5 text-left transition-all ${hebrewG2pEngine === "renikud" ? "border-primary bg-primary text-white shadow-lg shadow-primary/10" : "border-border/40 bg-background/20 text-primary hover:border-primary/50"}`}
+                >
+                  {hebrewG2pEngine === "renikud" && <Check className="absolute right-4 top-4 h-4 w-4" />}
+                  <p className="text-sm font-bold">Renikud</p>
+                  <p className={`mt-1 text-xs leading-relaxed ${hebrewG2pEngine === "renikud" ? "text-white/70" : "text-secondary/60"}`}>Fast, direct Hebrew-to-IPA conversion for everyday text.</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={choosePhonikud}
+                  disabled={downloadingPhonikud}
+                  className={`relative rounded-xl border p-5 text-left transition-all disabled:cursor-wait ${hebrewG2pEngine === "phonikud" ? "border-primary bg-primary text-white shadow-lg shadow-primary/10" : "border-border/40 bg-background/20 text-primary hover:border-primary/50"}`}
+                >
+                  {hebrewG2pEngine === "phonikud" ? <Check className="absolute right-4 top-4 h-4 w-4" /> : <Sparkles className="absolute right-4 top-4 h-4 w-4 text-secondary/40" />}
+                  <p className="text-sm font-bold">{downloadingPhonikud ? "Downloading model…" : "Phonikud"}</p>
+                  <p className={`mt-1 text-xs leading-relaxed ${hebrewG2pEngine === "phonikud" ? "text-white/70" : "text-secondary/60"}`}>Adds vocalization controls and a Diacritics editor for Hebrew text.</p>
+                </button>
+              </div>
+              <div className="flex items-start gap-2 rounded-lg bg-background/30 px-3 py-2.5 text-xs text-secondary/60">
+                <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary/60" />
+                <span>Phonikud downloads its diacritics model once. Its Diacritics tab becomes available in the studio when selected.</span>
               </div>
             </Card>
           </div>

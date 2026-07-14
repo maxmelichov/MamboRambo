@@ -19,6 +19,7 @@ pub trait Runtime: Send {
     fn voices(&self) -> Option<Vec<String>>;
     fn sample_rate(&self) -> u32;
     fn phonemize(&mut self, text: &str, language: &str) -> Result<String>;
+    fn diacritize(&mut self, text: &str) -> Result<String>;
     fn supported_phonemes(&self) -> Vec<char>;
     fn synthesize_streaming(
         &mut self,
@@ -47,6 +48,8 @@ pub enum RuntimeParams {
     Blue {
         model_dir: PathBuf,
         renikud_path: PathBuf,
+        hebrew_g2p_engine: String,
+        phonikud_path: Option<PathBuf>,
     },
 }
 

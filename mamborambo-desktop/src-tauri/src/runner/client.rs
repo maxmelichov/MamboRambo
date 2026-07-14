@@ -24,6 +24,8 @@ pub async fn load_model_request(
         "runtime": runtime.clone(),
         "model_path": request.model_path,
         "renikud_path": request.renikud_path,
+        "hebrew_g2p_engine": request.hebrew_g2p_engine.unwrap_or_else(|| "renikud".into()),
+        "phonikud_path": request.phonikud_path.unwrap_or_default(),
     });
 
     let response = client
@@ -102,6 +104,24 @@ pub async fn phonemize_request(
     serde_json::from_value::<PhonemizeResponse>(body)
         .map(|response| response.phonemes)
         .map_err(|err| format!("invalid phonemize response: {err}"))
+}
+
+pub async fn diacritize_request(
+    app: tauri::AppHandle,
+    state: State<'_, RunnerState>,
+    request: PhonemizeRequest,
+) -> Result<String, String> {
+    let (client, base_url) = runner_client(&app, &state)?;
+    let response = client
+        .post(format!("{base_url}/v1/diacritize"))
+        .json(&serde_json::json!({ "input": request.input, "language": "he" }))
+        .send()
+        .await
+        .map_err(|err| format!("failed to send diacritize request: {err}"))?;
+    let body = json_response(response).await?;
+    serde_json::from_value::<PhonemizeResponse>(body)
+        .map(|response| response.phonemes)
+        .map_err(|err| format!("invalid diacritize response: {err}"))
 }
 
 pub async fn get_phoneme_inventory_request(

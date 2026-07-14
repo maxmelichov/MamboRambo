@@ -27,6 +27,7 @@ const BLUE_MODELS_TAG: &str = "blue-onnx-v2";
 const BLUE_MODEL_DIR: &str = "blue-onnx-v2";
 const BLUE_MODEL_BASE_URL: &str = "https://huggingface.co/notmax123/blue-onnx-v2/resolve/main";
 const RENIKUD_URL: &str = "https://huggingface.co/thewh1teagle/renikud/resolve/main/model.onnx";
+const PHONIKUD_URL: &str = "https://huggingface.co/Phonikud/phonikud-onnx/resolve/main/phonikud-1.0.int8.onnx";
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ModelBundle {
@@ -39,6 +40,12 @@ pub struct ModelBundle {
     pub model_dir: String,
     pub version: String,
     pub url: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct PhonikudBundle {
+    pub installed: bool,
+    pub path: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -86,6 +93,28 @@ struct ModelDownloadProgress {
 #[tauri::command]
 pub async fn get_model_bundle(app: tauri::AppHandle) -> Result<ModelBundle, String> {
     model_bundle_for_runtime(&app, "blue")
+}
+
+#[tauri::command]
+pub fn get_phonikud_bundle(app: tauri::AppHandle) -> Result<PhonikudBundle, String> {
+    phonikud_bundle(&app)
+}
+
+#[tauri::command]
+pub async fn download_phonikud_bundle(app: tauri::AppHandle) -> Result<PhonikudBundle, String> {
+    let bundle = phonikud_bundle(&app)?;
+    if bundle.installed {
+        return Ok(bundle);
+    }
+    let path = PathBuf::from(&bundle.path);
+    tokio::fs::create_dir_all(path.parent().ok_or("invalid Phonikud model path")?)
+        .await
+        .map_err(|err| format!("failed to create Phonikud model directory: {err}"))?;
+    let client = reqwest::Client::builder().no_proxy().build().map_err(|err| format!("failed to build HTTP client: {err}"))?;
+    let mut downloaded = 0;
+    let total = remote_content_length(&client, PHONIKUD_URL).await;
+    download_model_file(&app, &client, PHONIKUD_URL, &path, &mut downloaded, total).await?;
+    phonikud_bundle(&app)
 }
 
 #[tauri::command]
@@ -236,6 +265,16 @@ fn blue_bundle(app: &tauri::AppHandle) -> Result<ModelBundle, String> {
         model_dir: path_string(&dir),
         version: source.version,
         url: BLUE_MODEL_BASE_URL.to_string(),
+    })
+}
+
+fn phonikud_bundle(app: &tauri::AppHandle) -> Result<PhonikudBundle, String> {
+    let path = models_root(app)?
+        .join("phonikud-v1")
+        .join("phonikud-1.0.int8.onnx");
+    Ok(PhonikudBundle {
+        installed: path.is_file(),
+        path: path_string(&path),
     })
 }
 

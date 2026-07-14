@@ -60,6 +60,10 @@ fn blue_load_params(body: LoadBody) -> Result<LoadParams, &'static str> {
         body.renikud_path,
         std::env::var("MAMBORAMBO_RENIKUD_PATH").unwrap_or_default(),
     ]);
+    let hebrew_g2p_engine = if body.hebrew_g2p_engine.is_empty() { "renikud".into() } else { body.hebrew_g2p_engine };
+    if !matches!(hebrew_g2p_engine.as_str(), "renikud" | "phonikud") {
+        return Err("hebrew_g2p_engine must be renikud or phonikud");
+    }
     if model_path.is_empty() || renikud_path.is_empty() {
         return Err("Blue runtime requires model_path and renikud_path");
     }
@@ -68,6 +72,8 @@ fn blue_load_params(body: LoadBody) -> Result<LoadParams, &'static str> {
         params: RuntimeParams::Blue {
             model_dir: model_path.into(),
             renikud_path: renikud_path.into(),
+            hebrew_g2p_engine,
+            phonikud_path: (!body.phonikud_path.is_empty()).then(|| body.phonikud_path.into()),
         },
     })
 }
@@ -85,6 +91,8 @@ mod tests {
                 runtime: "blue".into(),
                 model_path: "/models/blue".into(),
                 renikud_path: "/models/renikud.onnx".into(),
+                hebrew_g2p_engine: "renikud".into(),
+                phonikud_path: String::new(),
             })
             .is_ok()
         );
