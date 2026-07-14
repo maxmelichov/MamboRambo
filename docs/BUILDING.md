@@ -69,7 +69,7 @@ Model files are downloaded on first use into the application-local data director
 - Windows: `%LOCALAPPDATA%\com.maxmelichov.mamborambo\models`
 - Linux: `~/.local/share/com.maxmelichov.mamborambo/models`
 
-The current release provides the BlueTTS model bundle. New models must be registered in `crates/mamborambo-registry` and included in a sidecar build before the desktop will offer them.
+The current release provides the BlueTTS model bundle. New models must be registered in `crates/mamborambo-registry` and included in a sidecar build before the desktop will offer them. Full instructions for contributors: [ADDING_MODELS.md](./ADDING_MODELS.md).
 
 ## Upstream projects
 

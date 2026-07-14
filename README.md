@@ -50,6 +50,10 @@ MamboRambo builds on these open-source projects:
 
 See [BUILDING.md](docs/BUILDING.md).
 
+## Adding models
+
+Want to ship another open-source TTS model or voice bundle with MamboRambo? See [docs/ADDING_MODELS.md](docs/ADDING_MODELS.md) for licensing, registry wiring, server/desktop steps, and the PR checklist.
+
 ---
 
 The is code taken from [Chirp](https://github.com/thewh1teagle/chirp).
