@@ -47,8 +47,15 @@ impl Server {
             RuntimeParams::Blue {
                 model_dir,
                 renikud_path,
+                hebrew_g2p_engine,
+                phonikud_path,
             } => (
-                Box::new(BlueRuntime::load(model_dir.clone(), renikud_path.clone())?),
+                Box::new(BlueRuntime::load(
+                    model_dir.clone(),
+                    renikud_path.clone(),
+                    hebrew_g2p_engine,
+                    phonikud_path,
+                )?),
                 model_dir,
                 renikud_path,
             ),

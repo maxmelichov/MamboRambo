@@ -38,6 +38,11 @@ type EditorCardProps = {
   busy: boolean;
   text: string;
   setText: (text: string) => void;
+  language: string;
+  hebrewG2pEngine: string;
+  diacritics: string;
+  setDiacritics: (text: string) => void;
+  addDiacritics: () => Promise<void>;
   advancedMode: boolean;
   phonemes: string;
   setPhonemes: (phonemes: string) => void;
@@ -49,15 +54,22 @@ export function EditorCard({
   busy,
   text,
   setText,
+  language,
+  hebrewG2pEngine,
+  diacritics,
+  setDiacritics,
+  addDiacritics,
   advancedMode,
   phonemes,
   setPhonemes,
   convertToPhonemes,
   createVoice,
 }: EditorCardProps) {
-  const [tab, setTab] = useState<"text" | "phonemes">("text");
+  const [tab, setTab] = useState<"text" | "diacritics" | "phonemes">("text");
   const phonemeInput = useRef<HTMLTextAreaElement>(null);
   const [converting, setConverting] = useState(false);
+  const isHebrew = language === "he" || (language === "auto" && /[\u0590-\u05ff]/.test(text));
+  const textPlaceholder = isHebrew ? "הדביקו כאן טקסט בעברית..." : "Paste your text here...";
 
   function insertPhoneme(phoneme: string) {
     const textarea = phonemeInput.current;
@@ -85,6 +97,14 @@ export function EditorCard({
     if (!phonemes && text.trim()) await showRenikudOutput();
   }
 
+  async function openDiacritics() {
+    setTab("diacritics");
+    if (!diacritics && text.trim()) {
+      setConverting(true);
+      try { await addDiacritics(); } finally { setConverting(false); }
+    }
+  }
+
   return (
     <Card className="relative overflow-hidden p-0 shadow-xl border-none">
       {advancedMode && (
@@ -96,6 +116,9 @@ export function EditorCard({
           >
             Text
           </button>
+          {hebrewG2pEngine === "phonikud" && isHebrew && (
+            <button type="button" onClick={() => void openDiacritics()} className={cn("border-b-2 px-3 pb-3 text-[10px] font-bold uppercase tracking-[0.16em] transition-colors", tab === "diacritics" ? "border-primary text-primary" : "border-transparent text-secondary/40 hover:text-primary")}>Diacritics</button>
+          )}
           <button
             type="button"
             onClick={() => void openPhonemes()}
@@ -109,19 +132,27 @@ export function EditorCard({
         <textarea
           id="text"
           value={text}
-          placeholder="הדביקו כאן טקסט בעברית..."
-          dir="rtl"
-          lang="he"
+          placeholder={textPlaceholder}
+          dir={isHebrew ? "rtl" : "ltr"}
+          lang={isHebrew ? "he" : language === "auto" ? undefined : language}
           onChange={(event) => setText(event.currentTarget.value)}
           disabled={busy}
           className="min-h-[320px] w-full resize-none bg-white p-8 text-left text-lg font-medium leading-relaxed text-primary outline-none placeholder:text-secondary/20"
         />
+      ) : tab === "diacritics" ? (
+        <div className="bg-white p-8">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div><p className="text-sm font-semibold text-primary">Vocalized Hebrew</p><p className="text-xs text-secondary/55">Phonikud adds niqqud and phonetic marks before IPA conversion.</p></div>
+            <Button variant="outline" onClick={openDiacritics} disabled={busy || converting || !text.trim()} className="h-9 px-3 text-xs">{converting ? "Adding…" : "Refresh from text"}</Button>
+          </div>
+          <textarea value={diacritics} onChange={(event) => setDiacritics(event.currentTarget.value)} dir="rtl" lang="he" disabled={busy} className="min-h-48 w-full resize-y rounded-lg border border-border/50 bg-background/30 p-4 text-lg leading-relaxed text-primary outline-none focus:border-primary/50" />
+        </div>
       ) : (
         <div className="bg-white p-8">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-sm font-semibold text-primary">Model IPA input</p>
-              <p className="text-xs text-secondary/55">Renikud&apos;s IPA output for the Hebrew text. It is sent to BlueTTS without re-phonemizing.</p>
+              <p className="text-xs text-secondary/55">IPA output for the selected language. It is sent to BlueTTS without re-phonemizing.</p>
             </div>
             <Button variant="outline" onClick={showRenikudOutput} disabled={busy || converting || !text.trim()} className="h-9 px-3 text-xs">
               {converting ? "Converting..." : "Refresh from text"}
@@ -135,6 +166,7 @@ export function EditorCard({
             disabled={busy}
             className="min-h-32 w-full resize-y rounded-lg border border-border/50 bg-background/30 p-4 font-mono text-lg leading-relaxed text-primary outline-none focus:border-primary/50"
           />
+          {isHebrew && (
           <div className="mt-5">
             <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-secondary/40">Hebrew phonemes</p>
             <div className="space-y-3 rounded-lg border border-border/20 bg-background/20 p-3">
@@ -160,6 +192,7 @@ export function EditorCard({
               ))}
             </div>
           </div>
+          )}
         </div>
       )}
       <div className="flex items-center justify-between border-t border-border/10 bg-background/10 px-8 py-5">

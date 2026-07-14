@@ -61,6 +61,8 @@ pub async fn run() -> Result<()> {
                         params: RuntimeParams::Blue {
                             model_dir,
                             renikud_path,
+                            hebrew_g2p_engine: "renikud".into(),
+                            phonikud_path: None,
                         },
                     })
                     .await?;

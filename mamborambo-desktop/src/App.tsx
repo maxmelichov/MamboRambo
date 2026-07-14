@@ -18,9 +18,12 @@ function App() {
   const [bundle, setBundle] = useState<ModelBundle | null>(null);
   const [checking, setChecking] = useState(true);
   const [advancedMode, setAdvancedMode] = useState(() => localStorage.getItem("advanced-mode") === "true");
+  const [hebrewG2pEngine, setHebrewG2pEngine] = useState(() => localStorage.getItem("hebrew-g2p-engine") ?? "renikud");
+  const [phonikudPath, setPhonikudPath] = useState("");
   const [studio, setStudio] = useState<StudioState>({
     text: sampleText,
     phonemes: "",
+    diacritics: "",
     referencePath: "",
     languages: ["auto"],
     language: "auto",
@@ -58,6 +61,12 @@ function App() {
     };
   }, [location.pathname, navigate]);
 
+  useEffect(() => {
+    invoke<{ installed: boolean; path: string }>("get_phonikud_bundle")
+      .then((bundle) => setPhonikudPath(bundle.installed ? bundle.path : ""))
+      .catch(() => setPhonikudPath(""));
+  }, []);
+
   if (checking) {
     return (
       <main className="grid min-h-screen place-items-center bg-background p-8 text-primary">
@@ -79,7 +88,7 @@ function App() {
   return (
     <Routes>
       <Route path="/onboard" element={<OnboardPage bundle={bundle} setBundle={setBundle} />} />
-      <Route path="/home" element={<HomePage bundle={bundle} setBundle={setBundle} studio={studio} setStudio={setStudio} advancedMode={advancedMode} />} />
+      <Route path="/home" element={<HomePage bundle={bundle} setBundle={setBundle} studio={studio} setStudio={setStudio} advancedMode={advancedMode} hebrewG2pEngine={hebrewG2pEngine} phonikudPath={phonikudPath} />} />
       <Route path="/agents" element={<AgentsPage bundle={bundle} />} />
       <Route
         path="/settings"
@@ -91,6 +100,12 @@ function App() {
               localStorage.setItem("advanced-mode", String(enabled));
               setAdvancedMode(enabled);
             }}
+            hebrewG2pEngine={hebrewG2pEngine}
+            setHebrewG2pEngine={(engine) => {
+              localStorage.setItem("hebrew-g2p-engine", engine);
+              setHebrewG2pEngine(engine);
+            }}
+            setPhonikudPath={setPhonikudPath}
           />
         }
       />

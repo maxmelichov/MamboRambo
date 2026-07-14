@@ -20,7 +20,7 @@ pub use process::RunnerState;
 use binary::resolve_runner_binary;
 use client::{
     get_languages_request, get_phoneme_inventory_request, get_voices_request, load_model_request,
-    phonemize_request, synthesize_request,
+    diacritize_request, phonemize_request, synthesize_request,
 };
 use errors::track_err;
 use file_ops::copy_audio_file_request;
@@ -114,6 +114,15 @@ pub async fn phonemize(
     request: PhonemizeRequest,
 ) -> Result<String, String> {
     phonemize_request(app, state, request).await
+}
+
+#[tauri::command]
+pub async fn diacritize(
+    app: tauri::AppHandle,
+    state: State<'_, RunnerState>,
+    request: PhonemizeRequest,
+) -> Result<String, String> {
+    diacritize_request(app, state, request).await
 }
 
 #[tauri::command]

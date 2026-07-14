@@ -51,6 +51,23 @@ pub async fn phoneme_inventory(State(server): State<SharedServer>) -> Response {
     .into_response()
 }
 
+pub async fn diacritize(
+    State(server): State<SharedServer>,
+    Json(body): Json<PhonemizeBody>,
+) -> Response {
+    if body.input.trim().is_empty() {
+        return write_error(StatusCode::BAD_REQUEST, "invalid_request", "request body must contain input");
+    }
+    let mut inner = server.inner.lock().await;
+    let Some(ctx) = inner.ctx.as_mut() else {
+        return write_error(StatusCode::SERVICE_UNAVAILABLE, "no_model", "no model loaded");
+    };
+    match ctx.diacritize(&body.input) {
+        Ok(text) => Json(PhonemizeResponse { phonemes: text }).into_response(),
+        Err(err) => write_error(StatusCode::INTERNAL_SERVER_ERROR, "internal_error", err.to_string()),
+    }
+}
+
 #[utoipa::path(
     post,
     path = "/v1/audio/speech",

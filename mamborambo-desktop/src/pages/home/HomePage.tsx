@@ -22,11 +22,13 @@ type HomePageProps = PageProps & {
   studio: StudioState;
   setStudio: Dispatch<SetStateAction<StudioState>>;
   advancedMode: boolean;
+  hebrewG2pEngine: string;
+  phonikudPath: string;
 };
 
-export function HomePage({ bundle, setBundle, studio, setStudio, advancedMode }: HomePageProps) {
+export function HomePage({ bundle, setBundle, studio, setStudio, advancedMode, hebrewG2pEngine, phonikudPath }: HomePageProps) {
   const navigate = useNavigate();
-  const { text, phonemes, languages, language, blueVoice, blueVoiceIds, audioPath, streamChunkPaths, audioAutoplayPending, step, status, busy, error } = studio;
+  const { text, phonemes, diacritics, languages, language, blueVoice, blueVoiceIds, audioPath, streamChunkPaths, audioAutoplayPending, step, status, busy, error } = studio;
   const loadingLanguagesRef = useRef(false);
 
   const audioSrc = useMemo(() => (audioPath ? convertFileSrc(audioPath) : ""), [audioPath]);
@@ -74,6 +76,8 @@ export function HomePage({ bundle, setBundle, studio, setStudio, advancedMode }:
             runtime: currentBundle.runtime,
             model_path: currentBundle.model_path,
             renikud_path: currentBundle.codec_path,
+            hebrew_g2p_engine: hebrewG2pEngine,
+            phonikud_path: phonikudPath,
           },
         });
         const supportedLanguages = await invoke<string[]>("get_languages");
@@ -105,6 +109,8 @@ export function HomePage({ bundle, setBundle, studio, setStudio, advancedMode }:
         runtime: current.runtime,
         model_path: current.model_path,
         renikud_path: current.codec_path,
+            hebrew_g2p_engine: hebrewG2pEngine,
+            phonikud_path: phonikudPath,
       },
     });
   }
@@ -113,9 +119,15 @@ export function HomePage({ bundle, setBundle, studio, setStudio, advancedMode }:
     if (!text.trim()) return;
     await ensureModelLoaded();
     const output = await invoke<string>("phonemize", {
-      request: { input: text, language },
+      request: { input: diacritics || text, language },
     });
     updateStudio({ phonemes: output });
+  }
+
+  async function addDiacritics() {
+    await ensureModelLoaded();
+    const output = await invoke<string>("diacritize", { request: { input: text, language: "he" } });
+    updateStudio({ diacritics: output, phonemes: "" });
   }
 
   async function createVoice() {
@@ -142,6 +154,8 @@ export function HomePage({ bundle, setBundle, studio, setStudio, advancedMode }:
           runtime: current.runtime,
           model_path: current.model_path,
           renikud_path: current.codec_path,
+            hebrew_g2p_engine: hebrewG2pEngine,
+            phonikud_path: phonikudPath,
         },
       });
 
@@ -195,6 +209,11 @@ export function HomePage({ bundle, setBundle, studio, setStudio, advancedMode }:
               busy={busy}
               text={text}
               setText={(nextText) => updateStudio({ text: nextText, phonemes: "" })}
+              language={language}
+              hebrewG2pEngine={hebrewG2pEngine}
+              diacritics={diacritics}
+              setDiacritics={(nextDiacritics) => updateStudio({ diacritics: nextDiacritics, phonemes: "" })}
+              addDiacritics={addDiacritics}
               advancedMode={advancedMode}
               phonemes={phonemes}
               setPhonemes={(nextPhonemes) => updateStudio({ phonemes: nextPhonemes })}

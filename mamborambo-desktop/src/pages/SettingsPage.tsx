@@ -11,10 +11,28 @@ type SettingsPageProps = {
   bundle: ModelBundle | null;
   advancedMode: boolean;
   setAdvancedMode: (enabled: boolean) => void;
+  hebrewG2pEngine: string;
+  setHebrewG2pEngine: (engine: string) => void;
+  setPhonikudPath: (path: string) => void;
 };
 
-export function SettingsPage({ bundle, advancedMode, setAdvancedMode }: SettingsPageProps) {
+export function SettingsPage({ bundle, advancedMode, setAdvancedMode, hebrewG2pEngine, setHebrewG2pEngine, setPhonikudPath }: SettingsPageProps) {
   const [error, setError] = useState("");
+  const [downloadingPhonikud, setDownloadingPhonikud] = useState(false);
+
+  async function choosePhonikud() {
+    setDownloadingPhonikud(true);
+    setError("");
+    try {
+      const model = await invoke<{ path: string }>("download_phonikud_bundle");
+      setPhonikudPath(model.path);
+      setHebrewG2pEngine("phonikud");
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setDownloadingPhonikud(false);
+    }
+  }
 
   async function openModelsFolder() {
     setError("");
@@ -80,6 +98,19 @@ export function SettingsPage({ bundle, advancedMode, setAdvancedMode }: Settings
                   <ChevronRight className="h-3.5 w-3.5" />
                 </Link>
               </div>
+            </Card>
+          </div>
+          <div className="space-y-4">
+            <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-secondary opacity-30">Hebrew G2P Engine</h3>
+            <Card className="space-y-4 border-none p-8 shadow-xl">
+              <p className="text-sm text-secondary/65">Choose how Hebrew text is converted to IPA.</p>
+              <div className="flex flex-wrap gap-3">
+                <Button variant={hebrewG2pEngine === "renikud" ? "primary" : "outline"} onClick={() => setHebrewG2pEngine("renikud")}>Renikud</Button>
+                <Button variant={hebrewG2pEngine === "phonikud" ? "primary" : "outline"} onClick={choosePhonikud} disabled={downloadingPhonikud}>
+                  {downloadingPhonikud ? "Downloading Phonikud…" : "Use Phonikud"}
+                </Button>
+              </div>
+              <p className="text-xs text-secondary/50">Phonikud downloads its diacritics model once, then adds the Diacritics tab in the studio.</p>
             </Card>
           </div>
           <div className="space-y-4">

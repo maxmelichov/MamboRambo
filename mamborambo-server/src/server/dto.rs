@@ -52,6 +52,10 @@ pub struct LoadBody {
     pub model_path: String,
     #[serde(default)]
     pub renikud_path: String,
+    #[serde(default)]
+    pub hebrew_g2p_engine: String,
+    #[serde(default)]
+    pub phonikud_path: String,
 }
 
 impl Default for LoadBody {
@@ -60,6 +64,8 @@ impl Default for LoadBody {
             runtime: mamborambo_registry::DEFAULT_RUNTIME_ID.into(),
             model_path: String::new(),
             renikud_path: String::new(),
+            hebrew_g2p_engine: "renikud".into(),
+            phonikud_path: String::new(),
         }
     }
 }
