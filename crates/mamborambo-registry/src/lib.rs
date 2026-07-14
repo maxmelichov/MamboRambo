@@ -43,7 +43,7 @@ pub struct RuntimeManifest {
 }
 
 const BLUE_MODEL_BASE_URL: &str = "https://huggingface.co/notmax123/blue-onnx-v2/resolve/main";
-const RENIKUD_URL: &str = "https://huggingface.co/thewh1teagle/renikud/resolve/main/model.onnx";
+const RENIKUD_URL: &str = "https://huggingface.co/notmax123/RenikudPlus/resolve/main/model.onnx";
 
 const BLUE_FILES: &[ModelFile] = &[
     ModelFile {
@@ -79,7 +79,7 @@ const BLUE_FILES: &[ModelFile] = &[
         url: "https://huggingface.co/notmax123/blue-onnx-v2/resolve/main/voices/male1.json",
     },
     ModelFile {
-        name: "renikud.onnx",
+        name: "renikud-plus.onnx",
         url: RENIKUD_URL,
     },
 ];
@@ -93,7 +93,7 @@ const BLUE_REQUIRED_FILES: &[&str] = &[
     "tts.json",
     "voices/female1.json",
     "voices/male1.json",
-    "renikud.onnx",
+    "renikud-plus.onnx",
 ];
 
 const BLUE: RuntimeManifest = RuntimeManifest {
@@ -136,7 +136,7 @@ mod tests {
     fn blue_manifest_has_the_complete_hebrew_bundle() {
         let blue = runtime(DEFAULT_RUNTIME_ID).expect("Blue manifest");
         assert!(blue.capabilities.hebrew);
-        assert!(blue.required_files.contains(&"renikud.onnx"));
+        assert!(blue.required_files.contains(&"renikud-plus.onnx"));
         assert_eq!(blue.files.len(), blue.required_files.len());
     }
 }

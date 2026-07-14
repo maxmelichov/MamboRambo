@@ -28,7 +28,7 @@ type HomePageProps = PageProps & {
 
 export function HomePage({ bundle, setBundle, studio, setStudio, advancedMode, hebrewG2pEngine, phonikudPath }: HomePageProps) {
   const navigate = useNavigate();
-  const { text, phonemes, diacritics, languages, language, blueVoice, blueVoiceIds, audioPath, streamChunkPaths, audioAutoplayPending, step, status, busy, error } = studio;
+  const { text, phonemes, diacritics, languages, language, blueVoice, blueVoiceIds, speaker, targetSpeaker, audioPath, streamChunkPaths, audioAutoplayPending, step, status, busy, error } = studio;
   const loadingLanguagesRef = useRef(false);
 
   const audioSrc = useMemo(() => (audioPath ? convertFileSrc(audioPath) : ""), [audioPath]);
@@ -78,6 +78,8 @@ export function HomePage({ bundle, setBundle, studio, setStudio, advancedMode, h
             renikud_path: currentBundle.codec_path,
             hebrew_g2p_engine: hebrewG2pEngine,
             phonikud_path: phonikudPath,
+            speaker,
+            target_speaker: targetSpeaker,
           },
         });
         const supportedLanguages = await invoke<string[]>("get_languages");
@@ -111,6 +113,8 @@ export function HomePage({ bundle, setBundle, studio, setStudio, advancedMode, h
         renikud_path: current.codec_path,
             hebrew_g2p_engine: hebrewG2pEngine,
             phonikud_path: phonikudPath,
+            speaker,
+            target_speaker: targetSpeaker,
       },
     });
   }
@@ -156,6 +160,8 @@ export function HomePage({ bundle, setBundle, studio, setStudio, advancedMode, h
           renikud_path: current.codec_path,
             hebrew_g2p_engine: hebrewG2pEngine,
             phonikud_path: phonikudPath,
+            speaker,
+            target_speaker: targetSpeaker,
         },
       });
 
@@ -244,8 +250,13 @@ export function HomePage({ bundle, setBundle, studio, setStudio, advancedMode, h
               languages={languages}
               blueVoice={blueVoice}
               blueVoiceIds={blueVoiceIds}
+              hebrewG2pEngine={hebrewG2pEngine}
+              speaker={speaker}
+              targetSpeaker={targetSpeaker}
               setLanguage={(nextLanguage) => updateStudio({ language: nextLanguage })}
               setBlueVoice={(nextVoice) => updateStudio({ blueVoice: nextVoice })}
+              setSpeaker={(nextSpeaker) => updateStudio({ speaker: nextSpeaker, phonemes: "" })}
+              setTargetSpeaker={(nextSpeaker) => updateStudio({ targetSpeaker: nextSpeaker, phonemes: "" })}
             />
 
             <AnimatePresence>

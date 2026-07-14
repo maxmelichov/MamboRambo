@@ -56,6 +56,10 @@ pub struct LoadBody {
     pub hebrew_g2p_engine: String,
     #[serde(default)]
     pub phonikud_path: String,
+    #[serde(default)]
+    pub speaker: u8,
+    #[serde(default)]
+    pub target_speaker: u8,
 }
 
 impl Default for LoadBody {
@@ -66,6 +70,8 @@ impl Default for LoadBody {
             renikud_path: String::new(),
             hebrew_g2p_engine: "renikud".into(),
             phonikud_path: String::new(),
+            speaker: 0,
+            target_speaker: 0,
         }
     }
 }

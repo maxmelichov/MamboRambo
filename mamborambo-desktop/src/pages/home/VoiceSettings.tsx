@@ -24,16 +24,26 @@ export function VoiceSettings({
   languages,
   blueVoice,
   blueVoiceIds,
+  hebrewG2pEngine,
+  speaker,
+  targetSpeaker,
   setLanguage,
   setBlueVoice,
+  setSpeaker,
+  setTargetSpeaker,
 }: {
   busy: boolean;
   language: string;
   languages: string[];
   blueVoice: string;
   blueVoiceIds: string[];
+  hebrewG2pEngine: string;
+  speaker: number;
+  targetSpeaker: number;
   setLanguage: (language: string) => void;
   setBlueVoice: (voice: string) => void;
+  setSpeaker: (speaker: number) => void;
+  setTargetSpeaker: (speaker: number) => void;
 }) {
   const voices = blueVoiceIds.length ? blueVoiceIds : ["Rotem", "Roi"];
 
@@ -67,7 +77,34 @@ export function VoiceSettings({
         </div>
       </div>
 
+      {hebrewG2pEngine === "renikud" && (
+        <>
       <div className="h-px bg-border/10" />
+
+      <div className="space-y-4">
+        <div className="flex items-center gap-2.5">
+          <Languages className="h-4 w-4 text-secondary opacity-40" />
+          <Eyebrow className="mb-0">Hebrew speaker context</Eyebrow>
+        </div>
+        <p className="text-xs text-secondary/55">RenikudPlus uses these hints when choosing Hebrew IPA. They affect pronunciation, not the generated voice; use Rotem or Roi above to change the voice.</p>
+        <div className="grid grid-cols-2 gap-2">
+          {[
+            ["Source", speaker, setSpeaker],
+            ["Target", targetSpeaker, setTargetSpeaker],
+          ].map(([label, value, setValue]) => (
+            <label key={label as string} className="space-y-1 text-[10px] font-bold uppercase tracking-wider text-secondary/45">
+              {label as string}
+              <select value={value as number} onChange={(event) => (setValue as (value: number) => void)(Number(event.currentTarget.value))} disabled={busy} className="h-10 w-full rounded-lg border border-border/30 bg-white px-2 text-xs font-semibold normal-case tracking-normal text-primary">
+                <option value={0}>Unknown</option><option value={1}>Male</option><option value={2}>Female</option>
+              </select>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      <div className="h-px bg-border/10" />
+        </>
+      )}
 
       <div className="space-y-5">
         <div className="flex items-center gap-2.5">

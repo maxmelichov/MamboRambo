@@ -38,6 +38,14 @@
 - Local HTTP API with Swagger docs for tools and automation
 - Agent-ready `/skill` instructions for AI workflows
 
+## Models and phonemizers
+
+MamboRambo builds on these open-source projects:
+
+- [BlueTTS](https://github.com/maxmelichov/BlueTTS) — local ONNX text-to-speech runtime
+- [RenikudPlus](https://github.com/maxmelichov/RenikudPlus) — Hebrew grapheme-to-IPA conversion with speaker conditioning
+- [Phonikud](https://github.com/phonikud/phonikud) — Hebrew vocalization and diacritics-aware IPA tools
+
 ## Build
 
 See [BUILDING.md](docs/BUILDING.md).

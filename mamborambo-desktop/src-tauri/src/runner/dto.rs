@@ -40,6 +40,8 @@ pub struct LoadModelRequest {
     pub renikud_path: String,
     pub hebrew_g2p_engine: Option<String>,
     pub phonikud_path: Option<String>,
+    pub speaker: Option<u8>,
+    pub target_speaker: Option<u8>,
 }
 
 fn default_runtime() -> String {

@@ -70,3 +70,9 @@ Model files are downloaded on first use into the application-local data director
 - Linux: `~/.local/share/com.maxmelichov.mamborambo/models`
 
 The current release provides the BlueTTS model bundle. New models must be registered in `crates/mamborambo-registry` and included in a sidecar build before the desktop will offer them.
+
+## Upstream projects
+
+- [BlueTTS](https://github.com/maxmelichov/BlueTTS) provides the ONNX text-to-speech model.
+- [RenikudPlus](https://github.com/maxmelichov/RenikudPlus) provides Hebrew grapheme-to-IPA inference and optional speaker conditioning.
+- [Phonikud](https://github.com/phonikud/phonikud) provides optional Hebrew diacritics and vocalization tooling.
