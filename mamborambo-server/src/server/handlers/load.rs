@@ -74,6 +74,8 @@ fn blue_load_params(body: LoadBody) -> Result<LoadParams, &'static str> {
             renikud_path: renikud_path.into(),
             hebrew_g2p_engine,
             phonikud_path: (!body.phonikud_path.is_empty()).then(|| body.phonikud_path.into()),
+            speaker: body.speaker,
+            target_speaker: body.target_speaker,
         },
     })
 }
@@ -93,6 +95,8 @@ mod tests {
                 renikud_path: "/models/renikud.onnx".into(),
                 hebrew_g2p_engine: "renikud".into(),
                 phonikud_path: String::new(),
+                speaker: 0,
+                target_speaker: 0,
             })
             .is_ok()
         );

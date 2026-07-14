@@ -77,7 +77,7 @@ export function OnboardPage({ bundle, setBundle }: PageProps) {
     }
   }
 
-  const progressValue = Math.round((progress?.progress ?? 0) * 100);
+  const progressValue = Math.round(Math.min(1, Math.max(0, progress?.progress ?? 0)) * 100);
   const hasProgressPercent = typeof progress?.progress === "number";
   const progressLabel = hasProgressPercent
     ? `${progressValue}%`

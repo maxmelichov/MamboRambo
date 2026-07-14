@@ -49,12 +49,16 @@ impl Server {
                 renikud_path,
                 hebrew_g2p_engine,
                 phonikud_path,
+                speaker,
+                target_speaker,
             } => (
                 Box::new(BlueRuntime::load(
                     model_dir.clone(),
                     renikud_path.clone(),
                     hebrew_g2p_engine,
                     phonikud_path,
+                    speaker,
+                    target_speaker,
                 )?),
                 model_dir,
                 renikud_path,

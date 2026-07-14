@@ -26,7 +26,7 @@ const KOKORO_BUNDLE_URL: &str = "https://huggingface.co/maxmelichov/MamboRambo-k
 const BLUE_MODELS_TAG: &str = "blue-onnx-v2";
 const BLUE_MODEL_DIR: &str = "blue-onnx-v2";
 const BLUE_MODEL_BASE_URL: &str = "https://huggingface.co/notmax123/blue-onnx-v2/resolve/main";
-const RENIKUD_URL: &str = "https://huggingface.co/thewh1teagle/renikud/resolve/main/model.onnx";
+const RENIKUD_URL: &str = "https://huggingface.co/notmax123/RenikudPlus/resolve/main/model.onnx";
 const PHONIKUD_URL: &str = "https://huggingface.co/Phonikud/phonikud-onnx/resolve/main/phonikud-1.0.int8.onnx";
 
 #[derive(Debug, Clone, Serialize)]
@@ -243,7 +243,7 @@ pub fn model_bundle_for_runtime(
 fn blue_bundle(app: &tauri::AppHandle) -> Result<ModelBundle, String> {
     let source = runtime_source("blue").ok_or_else(|| "missing Blue source".to_string())?;
     let dir = models_root(app)?.join(BLUE_MODEL_DIR);
-    let renikud_path = dir.join("renikud.onnx");
+    let renikud_path = dir.join("renikud-plus.onnx");
     let required = [
         "duration_predictor.onnx",
         "text_encoder.onnx",
@@ -253,7 +253,7 @@ fn blue_bundle(app: &tauri::AppHandle) -> Result<ModelBundle, String> {
         "tts.json",
         "voices/female1.json",
         "voices/male1.json",
-        "renikud.onnx",
+        "renikud-plus.onnx",
     ];
     Ok(ModelBundle {
         installed: required.iter().all(|file| dir.join(file).is_file()),
@@ -544,6 +544,7 @@ async fn download_model_file(
         },
     );
 
+    let mut file_downloaded = 0_u64;
     let mut file = tokio::fs::File::create(&part)
         .await
         .map_err(|err| format!("failed to create {}: {err}", part.display()))?;
@@ -552,18 +553,24 @@ async fn download_model_file(
         let chunk =
             chunk.map_err(|err| format!("failed to read model download from {url}: {err}"))?;
         *downloaded += chunk.len() as u64;
+        file_downloaded += chunk.len() as u64;
         file.write_all(&chunk)
             .await
             .map_err(|err| format!("failed to write {}: {err}", part.display()))?;
         let progress_total = total.or(fallback_file_total);
+        let progress_downloaded = if total.is_some() {
+            *downloaded
+        } else {
+            file_downloaded
+        };
         emit_progress(
             app,
             ModelDownloadProgress {
-                downloaded: *downloaded,
+                downloaded: progress_downloaded,
                 total: progress_total,
                 progress: progress_total
                     .filter(|total| *total > 0)
-                    .map(|total| *downloaded as f64 / total as f64),
+                    .map(|total| progress_downloaded as f64 / total as f64),
                 stage: "downloading",
             },
         );

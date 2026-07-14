@@ -29,13 +29,14 @@ To add a model, add its manifest to the registry, implement a server `Runtime` a
 
 BlueTTS is the currently shipped runtime:
 
-- Hebrew and English local synthesis;
+- Hebrew, English, Spanish, Italian, and German local synthesis;
 - streaming WAV output;
 - fixed `Rotem` and `Roi` voice styles;
 - no reference-voice cloning;
-- Renikud ONNX phonemization for Hebrew.
+- [RenikudPlus](https://github.com/maxmelichov/RenikudPlus) ONNX phonemization for Hebrew, including optional source/target speaker conditioning;
+- optional [Phonikud](https://github.com/phonikud/phonikud) vocalization and diacritics controls.
 
-Its bundle is installed in the application data directory under `models/blue-onnx-v2/` and requires the ONNX pipeline, voice embeddings, and `renikud.onnx`.
+Its bundle is installed in the application data directory under `models/blue-onnx-v2/` and requires the [BlueTTS](https://github.com/maxmelichov/BlueTTS) ONNX pipeline, voice embeddings, and `renikud-plus.onnx`.
 
 Qwen and Kokoro are not currently shipped runtimes. Historical code and documentation must not be interpreted as available functionality.
 

@@ -29,6 +29,8 @@ function App() {
     language: "auto",
     blueVoice: "Rotem",
     blueVoiceIds: [],
+    speaker: 0,
+    targetSpeaker: 0,
     audioPath: "",
     streamChunkPaths: [],
     audioAutoplayPending: false,

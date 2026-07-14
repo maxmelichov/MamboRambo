@@ -21,6 +21,9 @@ pub struct BlueRuntime {
     languages: Vec<RuntimeLanguage>,
     hebrew_g2p_engine: String,
     phonikud_path: Option<PathBuf>,
+    renikud_plus_path: PathBuf,
+    speaker: u8,
+    target_speaker: u8,
 }
 
 impl BlueRuntime {
@@ -29,14 +32,15 @@ impl BlueRuntime {
         renikud_path: PathBuf,
         hebrew_g2p_engine: String,
         phonikud_path: Option<PathBuf>,
+        speaker: u8,
+        target_speaker: u8,
     ) -> Result<Self> {
         if hebrew_g2p_engine == "phonikud" && !phonikud_path.as_ref().is_some_and(|path| path.is_file()) {
             bail!("Phonikud is selected but its ONNX model has not been downloaded");
         }
         let tts = BlueTts::from_dir(&model_dir)
             .with_context(|| format!("load Blue ONNX models from {}", model_dir.display()))?;
-        let phonemizer = Phonemizer::with_language(Some(&renikud_path), Language::English)
-            .with_context(|| format!("load Renikud model {}", renikud_path.display()))?;
+        let phonemizer = Phonemizer::with_language(None::<PathBuf>, Language::English)?;
 
         let voices_dir = model_dir.join("voices");
         let mut styles = HashMap::new();
@@ -69,6 +73,9 @@ impl BlueRuntime {
             ],
             hebrew_g2p_engine,
             phonikud_path,
+            renikud_plus_path: renikud_path,
+            speaker,
+            target_speaker,
         })
     }
 
@@ -138,6 +145,30 @@ print(vocalized if sys.argv[1] == "diacritize" else phonemize(vocalized))"#;
         }
         Ok(String::from_utf8_lossy(&output.stdout).trim().to_owned())
     }
+
+    fn renikud_plus(&self, text: &str) -> Result<String> {
+        let script = r#"import sys
+from renikud_onnx import G2P
+model = G2P(sys.argv[1])
+print(model.phonemize(sys.stdin.read(), speaker=int(sys.argv[2]), target_speaker=int(sys.argv[3])))"#;
+        let mut child = Command::new("/opt/homebrew/bin/uv")
+            .args(["run", "--with", "git+https://github.com/maxmelichov/RenikudPlus", "python", "-c", script])
+            .arg(&self.renikud_plus_path)
+            .arg(self.speaker.to_string())
+            .arg(self.target_speaker.to_string())
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .context("start RenikudPlus via uv")?;
+        use std::io::Write;
+        child.stdin.take().context("open RenikudPlus stdin")?.write_all(text.as_bytes())?;
+        let output = child.wait_with_output().context("run RenikudPlus")?;
+        if !output.status.success() {
+            bail!("RenikudPlus failed: {}", String::from_utf8_lossy(&output.stderr).trim());
+        }
+        Ok(String::from_utf8_lossy(&output.stdout).trim().to_owned())
+    }
 }
 
 impl Runtime for BlueRuntime {
@@ -155,6 +186,9 @@ impl Runtime for BlueRuntime {
 
     fn phonemize(&mut self, text: &str, language: &str) -> Result<String> {
         let (language, _) = Self::language_for(text, language)?;
+        if language == Language::Hebrew && self.hebrew_g2p_engine == "renikud" {
+            return self.renikud_plus(text);
+        }
         if language == Language::Hebrew && self.hebrew_g2p_engine == "phonikud" {
             return self.phonikud(text, "phonemize");
         }
@@ -201,6 +235,15 @@ impl Runtime for BlueRuntime {
                     }),
                 },
             )?;
+            on_chunk(&audio, self.tts.sample_rate())?;
+            return Ok(audio);
+        }
+        if detected_language == Language::Hebrew && self.hebrew_g2p_engine == "renikud" {
+            let phonemes = self.renikud_plus(text)?;
+            let audio = self.tts.create(phonemes.as_str(), style, SynthesisOptions {
+                lang: language_code.to_owned(), total_step: 8, cfg_scale: 4.0, speed: 0.95,
+                chunking: Some(blue_rs::ChunkingOptions { enabled: true, silence_seconds: 0.15, max_chars: Some(200) }),
+            })?;
             on_chunk(&audio, self.tts.sample_rate())?;
             return Ok(audio);
         }
