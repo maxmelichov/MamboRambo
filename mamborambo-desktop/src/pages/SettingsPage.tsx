@@ -7,7 +7,13 @@ import type { ModelBundle } from "../lib/types";
 import { AppFrame } from "../components/AppFrame";
 import { Button, Card, ErrorBlock } from "../components/ui";
 
-export function SettingsPage({ bundle }: { bundle: ModelBundle | null }) {
+type SettingsPageProps = {
+  bundle: ModelBundle | null;
+  advancedMode: boolean;
+  setAdvancedMode: (enabled: boolean) => void;
+};
+
+export function SettingsPage({ bundle, advancedMode, setAdvancedMode }: SettingsPageProps) {
   const [error, setError] = useState("");
 
   async function openModelsFolder() {
@@ -74,6 +80,25 @@ export function SettingsPage({ bundle }: { bundle: ModelBundle | null }) {
                   <ChevronRight className="h-3.5 w-3.5" />
                 </Link>
               </div>
+            </Card>
+          </div>
+          <div className="space-y-4">
+            <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-secondary opacity-30">Advanced</h3>
+            <Card className="border-none p-8 shadow-xl">
+              <label className="flex cursor-pointer items-center justify-between gap-6">
+                <span className="space-y-1">
+                  <span className="block text-sm font-semibold tracking-tight text-primary">Phoneme editor</span>
+                  <span className="block max-w-[420px] text-sm text-secondary/60">
+                    Edit the model&apos;s IPA input directly and use the exact phoneme inventory from the loaded model.
+                  </span>
+                </span>
+                <input
+                  type="checkbox"
+                  checked={advancedMode}
+                  onChange={(event) => setAdvancedMode(event.currentTarget.checked)}
+                  className="h-5 w-5 shrink-0 accent-primary"
+                />
+              </label>
             </Card>
           </div>
           {error && <ErrorBlock>{error}</ErrorBlock>}

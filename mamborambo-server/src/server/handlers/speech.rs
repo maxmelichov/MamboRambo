@@ -8,8 +8,48 @@ use axum::{
 use futures_util::stream;
 
 use super::super::{
-    dto::SpeechBody, errors::write_error, state::SharedServer, util::first_non_empty,
+    dto::{PhonemeInventoryResponse, PhonemizeBody, PhonemizeResponse, SpeechBody},
+    errors::write_error,
+    state::SharedServer,
+    util::first_non_empty,
 };
+
+pub async fn phonemize(
+    State(server): State<SharedServer>,
+    Json(body): Json<PhonemizeBody>,
+) -> Response {
+    if body.input.trim().is_empty() {
+        return write_error(
+            StatusCode::BAD_REQUEST,
+            "invalid_request",
+            "request body must contain input",
+        );
+    }
+    let mut inner = server.inner.lock().await;
+    let Some(ctx) = inner.ctx.as_mut() else {
+        return write_error(StatusCode::SERVICE_UNAVAILABLE, "no_model", "no model loaded");
+    };
+    match ctx.phonemize(&body.input, &body.language) {
+        Ok(phonemes) => Json(PhonemizeResponse { phonemes }).into_response(),
+        Err(err) => write_error(StatusCode::INTERNAL_SERVER_ERROR, "internal_error", err.to_string()),
+    }
+}
+
+pub async fn phoneme_inventory(State(server): State<SharedServer>) -> Response {
+    let inner = server.inner.lock().await;
+    let Some(ctx) = inner.ctx.as_ref() else {
+        return write_error(StatusCode::SERVICE_UNAVAILABLE, "no_model", "no model loaded");
+    };
+    Json(PhonemeInventoryResponse {
+        phonemes: ctx
+            .supported_phonemes()
+            .into_iter()
+            .filter(|character| character.is_alphabetic() || !character.is_ascii())
+            .map(|character| character.to_string())
+            .collect(),
+    })
+    .into_response()
+}
 
 #[utoipa::path(
     post,
@@ -41,6 +81,13 @@ pub async fn speech(State(server): State<SharedServer>, Json(body): Json<SpeechB
     }
     if body.stream {
         return streaming_wav_response(server, body).await;
+    }
+    if body.input_is_phonemes {
+        return write_error(
+            StatusCode::BAD_REQUEST,
+            "invalid_request",
+            "phoneme input requires stream=true",
+        );
     }
 
     let Ok(tmp) = tempfile::Builder::new()
@@ -127,12 +174,22 @@ async fn streaming_wav_response(server: SharedServer, body: SpeechBody) -> Respo
             tx.blocking_send(Ok(frame(1, wav)))
                 .map_err(|_| anyhow::anyhow!("streaming client disconnected"))
         };
-        match ctx.synthesize_streaming(
-            &body.input,
-            (!voice.is_empty()).then_some(voice.as_str()),
-            &body.language,
-            &mut send_chunk,
-        ) {
+        let result = if body.input_is_phonemes {
+            ctx.synthesize_phonemes_streaming(
+                &body.input,
+                (!voice.is_empty()).then_some(voice.as_str()),
+                &body.language,
+                &mut send_chunk,
+            )
+        } else {
+            ctx.synthesize_streaming(
+                &body.input,
+                (!voice.is_empty()).then_some(voice.as_str()),
+                &body.language,
+                &mut send_chunk,
+            )
+        };
+        match result {
             Ok(audio) => {
                 // The final frame is retained for download/save. It does not
                 // delay playback because every chunk was already sent above.

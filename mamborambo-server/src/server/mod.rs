@@ -49,6 +49,8 @@ fn router(server: SharedServer) -> Router {
         )
         .route("/v1/models/sources", get(handlers::model_sources_handler))
         .route("/v1/models/load", post(handlers::model_load))
+        .route("/v1/phonemize", post(handlers::phonemize))
+        .route("/v1/phonemes", get(handlers::phoneme_inventory))
         .route("/v1/audio/speech", post(handlers::speech))
         .merge(docs::swagger_ui())
         .with_state(server)

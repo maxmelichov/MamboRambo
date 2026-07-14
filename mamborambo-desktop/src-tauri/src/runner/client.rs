@@ -4,7 +4,10 @@ use tauri::{Emitter, State};
 use crate::{analytics, runner::errors::track_runner_err};
 
 use super::{
-    dto::{LanguagesResponse, LoadModelRequest, SpeechRequest, VoicesResponse},
+    dto::{
+        LanguagesResponse, LoadModelRequest, PhonemeInventoryResponse, PhonemizeRequest,
+        PhonemizeResponse, SpeechRequest, VoicesResponse,
+    },
     errors::{get_json, json_response, response_error},
     process::RunnerState,
     runner_client,
@@ -80,6 +83,43 @@ pub async fn get_voices_request(
     Ok(body.voices)
 }
 
+pub async fn phonemize_request(
+    app: tauri::AppHandle,
+    state: State<'_, RunnerState>,
+    request: PhonemizeRequest,
+) -> Result<String, String> {
+    let (client, base_url) = runner_client(&app, &state)?;
+    let response = client
+        .post(format!("{base_url}/v1/phonemize"))
+        .json(&serde_json::json!({
+            "input": request.input,
+            "language": request.language.unwrap_or_else(|| "auto".to_string()),
+        }))
+        .send()
+        .await
+        .map_err(|err| format!("failed to send phonemize request: {err}"))?;
+    let body = json_response(response).await?;
+    serde_json::from_value::<PhonemizeResponse>(body)
+        .map(|response| response.phonemes)
+        .map_err(|err| format!("invalid phonemize response: {err}"))
+}
+
+pub async fn get_phoneme_inventory_request(
+    app: tauri::AppHandle,
+    state: State<'_, RunnerState>,
+) -> Result<Vec<String>, String> {
+    let (client, base_url) = runner_client(&app, &state)?;
+    let body = get_json::<PhonemeInventoryResponse>(
+        &app,
+        &client,
+        &format!("{base_url}/v1/phonemes"),
+        "get_phoneme_inventory",
+        "phonemes",
+    )
+    .await?;
+    Ok(body.phonemes)
+}
+
 pub async fn synthesize_request(
     app: tauri::AppHandle,
     state: State<'_, RunnerState>,
@@ -102,6 +142,7 @@ pub async fn synthesize_request(
         "response_format": "wav",
         "language": language,
         "stream": true,
+        "input_is_phonemes": request.input_is_phonemes.unwrap_or(false),
     });
     let props = || {
         serde_json::json!({

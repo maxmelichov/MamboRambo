@@ -81,4 +81,23 @@ pub struct SpeechBody {
     pub language: String,
     #[serde(default)]
     pub stream: bool,
+    #[serde(default)]
+    pub input_is_phonemes: bool,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct PhonemizeBody {
+    pub input: String,
+    #[serde(default)]
+    pub language: String,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct PhonemizeResponse {
+    pub phonemes: String,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct PhonemeInventoryResponse {
+    pub phonemes: Vec<String>,
 }

@@ -97,6 +97,15 @@ impl Runtime for BlueRuntime {
         self.tts.sample_rate()
     }
 
+    fn phonemize(&mut self, text: &str, language: &str) -> Result<String> {
+        let (language, _) = Self::language_for(text, language)?;
+        self.phonemizer.g2p(text, language).map(strip_language_tags)
+    }
+
+    fn supported_phonemes(&self) -> Vec<char> {
+        self.tts.supported_phonemes()
+    }
+
     fn synthesize_streaming(
         &mut self,
         text: &str,
@@ -127,6 +136,37 @@ impl Runtime for BlueRuntime {
             },
             |chunk| on_chunk(chunk, sample_rate),
         )
+    }
+
+    fn synthesize_phonemes_streaming(
+        &mut self,
+        phonemes: &str,
+        voice: Option<&str>,
+        language: &str,
+        on_chunk: &mut dyn FnMut(&[f32], u32) -> Result<()>,
+    ) -> Result<Vec<f32>> {
+        let (_, language_code) = Self::language_for(phonemes, language)?;
+        let voice = Self::normalize_voice(voice.unwrap_or("Rotem"));
+        let style = self.styles.get(voice).ok_or_else(|| {
+            anyhow::anyhow!("unknown Blue voice `{voice}`; expected Rotem or Roi")
+        })?;
+        let audio = self.tts.create(
+            phonemes,
+            style,
+            SynthesisOptions {
+                lang: language_code.to_owned(),
+                total_step: 8,
+                cfg_scale: 4.0,
+                speed: 0.95,
+                chunking: Some(blue_rs::ChunkingOptions {
+                    enabled: true,
+                    silence_seconds: 0.15,
+                    max_chars: Some(200),
+                }),
+            },
+        )?;
+        on_chunk(&audio, self.tts.sample_rate())?;
+        Ok(audio)
     }
 
     fn synthesize_to_file(
@@ -175,9 +215,19 @@ fn language(name: &str, id: i32) -> RuntimeLanguage {
     }
 }
 
+fn strip_language_tags(phonemes: String) -> String {
+    ["en", "es", "de", "it", "he"]
+        .into_iter()
+        .fold(phonemes, |output, language| {
+            output
+                .replace(&format!("<{language}>"), "")
+                .replace(&format!("</{language}>"), "")
+        })
+}
+
 #[cfg(test)]
 mod tests {
-    use super::BlueRuntime;
+    use super::{BlueRuntime, strip_language_tags};
 
     #[test]
     fn detects_hebrew_and_rejects_unsupported_languages() {
@@ -185,5 +235,13 @@ mod tests {
         assert_eq!(BlueRuntime::language_for("Hello", "auto").unwrap().1, "en");
         assert!(BlueRuntime::language_for("Hola", "es").is_err());
         assert!(BlueRuntime::language_for("Bonjour", "fr").is_err());
+    }
+
+    #[test]
+    fn strips_internal_language_tags_from_preview_ipa() {
+        assert_eq!(
+            strip_language_tags("<he>ʃalˈom</he> , <en>həlˈoʊ</en>".into()),
+            "ʃalˈom , həlˈoʊ"
+        );
     }
 }

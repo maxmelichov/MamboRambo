@@ -51,4 +51,21 @@ pub struct SpeechRequest {
     pub voice: Option<String>,
     pub output_path: Option<String>,
     pub language: Option<String>,
+    pub input_is_phonemes: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PhonemizeRequest {
+    pub input: String,
+    pub language: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PhonemizeResponse {
+    pub phonemes: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PhonemeInventoryResponse {
+    pub phonemes: Vec<String>,
 }
