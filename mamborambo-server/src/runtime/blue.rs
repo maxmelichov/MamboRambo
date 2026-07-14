@@ -99,7 +99,7 @@ impl Runtime for BlueRuntime {
 
     fn phonemize(&mut self, text: &str, language: &str) -> Result<String> {
         let (language, _) = Self::language_for(text, language)?;
-        self.phonemizer.g2p(text, language)
+        self.phonemizer.g2p(text, language).map(strip_language_tags)
     }
 
     fn supported_phonemes(&self) -> Vec<char> {
@@ -215,9 +215,19 @@ fn language(name: &str, id: i32) -> RuntimeLanguage {
     }
 }
 
+fn strip_language_tags(phonemes: String) -> String {
+    ["en", "es", "de", "it", "he"]
+        .into_iter()
+        .fold(phonemes, |output, language| {
+            output
+                .replace(&format!("<{language}>"), "")
+                .replace(&format!("</{language}>"), "")
+        })
+}
+
 #[cfg(test)]
 mod tests {
-    use super::BlueRuntime;
+    use super::{BlueRuntime, strip_language_tags};
 
     #[test]
     fn detects_hebrew_and_rejects_unsupported_languages() {
@@ -225,5 +235,13 @@ mod tests {
         assert_eq!(BlueRuntime::language_for("Hello", "auto").unwrap().1, "en");
         assert!(BlueRuntime::language_for("Hola", "es").is_err());
         assert!(BlueRuntime::language_for("Bonjour", "fr").is_err());
+    }
+
+    #[test]
+    fn strips_internal_language_tags_from_preview_ipa() {
+        assert_eq!(
+            strip_language_tags("<he>ʃalˈom</he> , <en>həlˈoʊ</en>".into()),
+            "ʃalˈom , həlˈoʊ"
+        );
     }
 }

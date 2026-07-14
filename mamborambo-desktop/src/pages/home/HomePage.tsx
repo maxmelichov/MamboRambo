@@ -156,13 +156,16 @@ export function HomePage({ bundle, setBundle, studio, setStudio, advancedMode }:
       updateStudio(nextStudio);
       const selectedLanguage = supportedLanguages.includes(language) ? language : "auto";
       if (selectedLanguage !== language) updateStudio({ language: "auto" });
+      const synthesisLanguage = advancedMode && phonemes.trim() && selectedLanguage === "auto"
+        ? (/[֐-׿]/.test(text) ? "he" : "en")
+        : selectedLanguage;
 
       updateStudio({ step: "creating", status: "Generating audio..." });
       const output = await invoke<string>("synthesize", {
         request: {
           input,
           voice: blueVoice,
-          language: selectedLanguage,
+          language: synthesisLanguage,
           input_is_phonemes: advancedMode && Boolean(phonemes.trim()),
         },
       });
