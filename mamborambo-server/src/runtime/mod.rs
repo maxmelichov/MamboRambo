@@ -18,9 +18,18 @@ pub trait Runtime: Send {
     fn languages(&self) -> &[Language];
     fn voices(&self) -> Option<Vec<String>>;
     fn sample_rate(&self) -> u32;
+    fn phonemize(&mut self, text: &str, language: &str) -> Result<String>;
+    fn supported_phonemes(&self) -> Vec<char>;
     fn synthesize_streaming(
         &mut self,
         text: &str,
+        voice: Option<&str>,
+        language: &str,
+        on_chunk: &mut dyn FnMut(&[f32], u32) -> Result<()>,
+    ) -> Result<Vec<f32>>;
+    fn synthesize_phonemes_streaming(
+        &mut self,
+        phonemes: &str,
         voice: Option<&str>,
         language: &str,
         on_chunk: &mut dyn FnMut(&[f32], u32) -> Result<()>,

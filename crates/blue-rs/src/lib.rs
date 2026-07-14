@@ -135,6 +135,11 @@ impl BlueTts {
         self.geometry.sample_rate as u32
     }
 
+    /// Characters accepted by the loaded model vocabulary, including IPA symbols.
+    pub fn supported_phonemes(&self) -> Vec<char> {
+        self.tokenizer.supported_characters()
+    }
+
     pub fn create(
         &mut self,
         phonemes: &str,

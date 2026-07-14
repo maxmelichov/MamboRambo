@@ -21,11 +21,12 @@ type PageProps = {
 type HomePageProps = PageProps & {
   studio: StudioState;
   setStudio: Dispatch<SetStateAction<StudioState>>;
+  advancedMode: boolean;
 };
 
-export function HomePage({ bundle, setBundle, studio, setStudio }: HomePageProps) {
+export function HomePage({ bundle, setBundle, studio, setStudio, advancedMode }: HomePageProps) {
   const navigate = useNavigate();
-  const { text, languages, language, blueVoice, blueVoiceIds, audioPath, streamChunkPaths, audioAutoplayPending, step, status, busy, error } = studio;
+  const { text, phonemes, languages, language, blueVoice, blueVoiceIds, audioPath, streamChunkPaths, audioAutoplayPending, step, status, busy, error } = studio;
   const loadingLanguagesRef = useRef(false);
 
   const audioSrc = useMemo(() => (audioPath ? convertFileSrc(audioPath) : ""), [audioPath]);
@@ -95,6 +96,28 @@ export function HomePage({ bundle, setBundle, studio, setStudio }: HomePageProps
     loadLanguages();
   }, [bundle, busy, languages.length, blueVoiceIds.length]);
 
+  async function ensureModelLoaded() {
+    const current = bundle ?? (await invoke<ModelBundle>("get_model_bundle_for_runtime", { runtime: "blue" }));
+    if (!current.installed) throw new Error("Install the Blue model before using phonemes.");
+    await invoke<RunnerInfo>("start_runner");
+    await invoke("load_model", {
+      request: {
+        runtime: current.runtime,
+        model_path: current.model_path,
+        renikud_path: current.codec_path,
+      },
+    });
+  }
+
+  async function convertToPhonemes() {
+    if (!text.trim()) return;
+    await ensureModelLoaded();
+    const output = await invoke<string>("phonemize", {
+      request: { input: text, language },
+    });
+    updateStudio({ phonemes: output });
+  }
+
   async function createVoice() {
     const current = bundle ?? (await invoke<ModelBundle>("get_model_bundle_for_runtime", { runtime: "blue" }));
     setBundle(current);
@@ -102,7 +125,8 @@ export function HomePage({ bundle, setBundle, studio, setStudio }: HomePageProps
       navigate("/onboard", { replace: true });
       return;
     }
-    if (!text.trim()) {
+    const input = advancedMode && phonemes.trim() ? phonemes : text;
+    if (!input.trim()) {
       updateStudio({ status: "Input text required." });
       return;
     }
@@ -136,9 +160,10 @@ export function HomePage({ bundle, setBundle, studio, setStudio }: HomePageProps
       updateStudio({ step: "creating", status: "Generating audio..." });
       const output = await invoke<string>("synthesize", {
         request: {
-          input: text,
+          input,
           voice: blueVoice,
           language: selectedLanguage,
+          input_is_phonemes: advancedMode && Boolean(phonemes.trim()),
         },
       });
       // Chunk files exist solely for low-latency playback while inference is
@@ -166,7 +191,11 @@ export function HomePage({ bundle, setBundle, studio, setStudio }: HomePageProps
             <EditorCard
               busy={busy}
               text={text}
-              setText={(nextText) => updateStudio({ text: nextText })}
+              setText={(nextText) => updateStudio({ text: nextText, phonemes: "" })}
+              advancedMode={advancedMode}
+              phonemes={phonemes}
+              setPhonemes={(nextPhonemes) => updateStudio({ phonemes: nextPhonemes })}
+              convertToPhonemes={convertToPhonemes}
               createVoice={createVoice}
             />
 

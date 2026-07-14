@@ -33,6 +33,8 @@ pub fn run() {
             runner::load_model,
             runner::get_languages,
             runner::get_voices,
+            runner::phonemize,
+            runner::get_phoneme_inventory,
             runner::synthesize,
             runner::copy_audio_file,
             voices::download_voice,

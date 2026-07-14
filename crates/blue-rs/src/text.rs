@@ -38,6 +38,12 @@ impl Tokenizer {
         })
     }
 
+    pub(crate) fn supported_characters(&self) -> Vec<char> {
+        let mut characters: Vec<_> = self.char_to_id.keys().copied().collect();
+        characters.sort_unstable();
+        characters
+    }
+
     pub(crate) fn encode_batch(
         &self,
         texts: &[&str],

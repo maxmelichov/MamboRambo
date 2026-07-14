@@ -14,11 +14,14 @@ use tauri::{Manager, State};
 
 use crate::analytics;
 
-pub use dto::{LoadModelRequest, RunnerInfo, SpeechRequest};
+pub use dto::{LoadModelRequest, PhonemizeRequest, RunnerInfo, SpeechRequest};
 pub use process::RunnerState;
 
 use binary::resolve_runner_binary;
-use client::{get_languages_request, get_voices_request, load_model_request, synthesize_request};
+use client::{
+    get_languages_request, get_phoneme_inventory_request, get_voices_request, load_model_request,
+    phonemize_request, synthesize_request,
+};
 use errors::track_err;
 use file_ops::copy_audio_file_request;
 use process::RunnerProcess;
@@ -102,6 +105,23 @@ pub async fn get_voices(
     state: State<'_, RunnerState>,
 ) -> Result<Vec<String>, String> {
     get_voices_request(app, state).await
+}
+
+#[tauri::command]
+pub async fn phonemize(
+    app: tauri::AppHandle,
+    state: State<'_, RunnerState>,
+    request: PhonemizeRequest,
+) -> Result<String, String> {
+    phonemize_request(app, state, request).await
+}
+
+#[tauri::command]
+pub async fn get_phoneme_inventory(
+    app: tauri::AppHandle,
+    state: State<'_, RunnerState>,
+) -> Result<Vec<String>, String> {
+    get_phoneme_inventory_request(app, state).await
 }
 
 #[tauri::command]

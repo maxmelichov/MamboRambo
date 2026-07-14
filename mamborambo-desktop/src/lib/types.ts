@@ -55,6 +55,7 @@ export type CreateStep = "idle" | "starting" | "loading" | "creating" | "done";
 
 export type StudioState = {
   text: string;
+  phonemes: string;
   referencePath: string;
   languages: string[];
   language: string;

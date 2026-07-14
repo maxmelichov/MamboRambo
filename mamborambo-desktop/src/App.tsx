@@ -17,8 +17,10 @@ function App() {
   const navigate = useNavigate();
   const [bundle, setBundle] = useState<ModelBundle | null>(null);
   const [checking, setChecking] = useState(true);
+  const [advancedMode, setAdvancedMode] = useState(() => localStorage.getItem("advanced-mode") === "true");
   const [studio, setStudio] = useState<StudioState>({
     text: sampleText,
+    phonemes: "",
     referencePath: "",
     languages: ["auto"],
     language: "auto",
@@ -77,9 +79,21 @@ function App() {
   return (
     <Routes>
       <Route path="/onboard" element={<OnboardPage bundle={bundle} setBundle={setBundle} />} />
-      <Route path="/home" element={<HomePage bundle={bundle} setBundle={setBundle} studio={studio} setStudio={setStudio} />} />
+      <Route path="/home" element={<HomePage bundle={bundle} setBundle={setBundle} studio={studio} setStudio={setStudio} advancedMode={advancedMode} />} />
       <Route path="/agents" element={<AgentsPage bundle={bundle} />} />
-      <Route path="/settings" element={<SettingsPage bundle={bundle} />} />
+      <Route
+        path="/settings"
+        element={
+          <SettingsPage
+            bundle={bundle}
+            advancedMode={advancedMode}
+            setAdvancedMode={(enabled) => {
+              localStorage.setItem("advanced-mode", String(enabled));
+              setAdvancedMode(enabled);
+            }}
+          />
+        }
+      />
       <Route path="*" element={<Navigate to={bundle?.installed ? "/home" : "/onboard"} replace />} />
     </Routes>
   );
