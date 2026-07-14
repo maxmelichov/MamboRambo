@@ -25,6 +25,8 @@ Both the desktop downloader and server `GET /v1/models/sources` build their cata
 
 To add a model, add its manifest to the registry, implement a server `Runtime` adapter, add a `RuntimeParams` variant and loading validation, then package its native dependencies with the sidecar. The model picker reads the registry data; it does not need a hardcoded card per runtime.
 
+Step-by-step contribution guide (licenses, hosting, desktop wiring, and PR checklist): [ADDING_MODELS.md](./ADDING_MODELS.md).
+
 ## Current runtime
 
 BlueTTS is the currently shipped runtime:
