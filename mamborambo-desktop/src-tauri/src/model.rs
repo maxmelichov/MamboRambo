@@ -112,8 +112,8 @@ pub async fn download_phonikud_bundle(app: tauri::AppHandle) -> Result<PhonikudB
         .map_err(|err| format!("failed to create Phonikud model directory: {err}"))?;
     let client = reqwest::Client::builder().no_proxy().build().map_err(|err| format!("failed to build HTTP client: {err}"))?;
     let mut downloaded = 0;
-    let total = remote_content_length(&client, PHONIKUD_URL).await;
-    download_model_file(&app, &client, PHONIKUD_URL, &path, &mut downloaded, total).await?;
+    let mut total = remote_content_length(&client, PHONIKUD_URL).await;
+    download_model_file(&app, &client, PHONIKUD_URL, &path, &mut downloaded, &mut total).await?;
     phonikud_bundle(&app)
 }
 
@@ -380,14 +380,14 @@ async fn download_kokoro_bundle(app: tauri::AppHandle) -> Result<ModelBundle, St
         .build()
         .map_err(|err| format!("failed to build HTTP client: {err}"))?;
     let mut downloaded = 0_u64;
-    let total = remote_content_length(&client, &archive_url).await;
+    let mut total = remote_content_length(&client, &archive_url).await;
     download_model_file(
         &app,
         &client,
         &archive_url,
         &archive_path,
         &mut downloaded,
-        total,
+        &mut total,
     )
     .await?;
 
@@ -442,10 +442,16 @@ async fn download_blue_bundle(app: tauri::AppHandle) -> Result<ModelBundle, Stri
             .map(|file| remote_content_length(&client, &file.url)),
     )
     .await;
-    let total = totals
-        .into_iter()
-        .collect::<Option<Vec<_>>>()
-        .map(|items| items.into_iter().sum());
+    let known_sum: u64 = totals.iter().flatten().copied().sum();
+    let known_count = totals.iter().flatten().count();
+    let estimated = parse_size_label_bytes(&source.size).unwrap_or(BLUE_ESTIMATED_BYTES);
+    // Prefer exact sum when every file reports a size; otherwise keep the bar moving
+    // with the larger of known bytes vs the advertised bundle size (Blue + RenikudPlus).
+    let mut total = Some(if known_count == source.files.len() && known_sum > 0 {
+        known_sum
+    } else {
+        known_sum.max(estimated)
+    });
     let mut downloaded = 0_u64;
     for file in source.files {
         let destination = dir.join(&file.name);
@@ -460,10 +466,19 @@ async fn download_blue_bundle(app: tauri::AppHandle) -> Result<ModelBundle, Stri
             &file.url,
             &destination,
             &mut downloaded,
-            total,
+            &mut total,
         )
         .await?;
     }
+    emit_progress(
+        &app,
+        ModelDownloadProgress {
+            downloaded,
+            total,
+            progress: Some(1.0),
+            stage: "downloading",
+        },
+    );
     let bundle = blue_bundle(&app)?;
     if !bundle.installed {
         return Err("Blue model download completed, but required files are missing".to_string());
@@ -484,14 +499,60 @@ fn model_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     Ok(models_root(app)?.join(MODEL_DIR))
 }
 
+const BLUE_ESTIMATED_BYTES: u64 = 560 * 1024 * 1024;
+
+fn parse_size_label_bytes(label: &str) -> Option<u64> {
+    let lower = label.to_ascii_lowercase();
+    let number: String = lower
+        .chars()
+        .filter(|ch| ch.is_ascii_digit() || *ch == '.')
+        .collect();
+    let value = number.parse::<f64>().ok()?;
+    if lower.contains("gb") {
+        Some((value * 1024.0 * 1024.0 * 1024.0) as u64)
+    } else if lower.contains("mb") {
+        Some((value * 1024.0 * 1024.0) as u64)
+    } else if lower.contains("kb") {
+        Some((value * 1024.0) as u64)
+    } else {
+        None
+    }
+}
+
 async fn remote_content_length(client: &reqwest::Client, url: &str) -> Option<u64> {
-    client
+    if let Some(length) = client
         .head(url)
         .send()
         .await
         .ok()
         .filter(|response| response.status().is_success())
         .and_then(|response| response_content_length(&response))
+    {
+        return Some(length);
+    }
+
+    // Hugging Face often omits Content-Length on HEAD; Range probes usually reveal size.
+    let response = client
+        .get(url)
+        .header(reqwest::header::RANGE, "bytes=0-0")
+        .send()
+        .await
+        .ok()?;
+    if !(response.status().is_success() || response.status().as_u16() == 206) {
+        return None;
+    }
+    // Prefer Content-Range total; Content-Length on a Range response is only the fragment size.
+    content_range_total(&response).or_else(|| response_content_length(&response))
+}
+
+fn content_range_total(response: &reqwest::Response) -> Option<u64> {
+    response
+        .headers()
+        .get(reqwest::header::CONTENT_RANGE)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.rsplit('/').next())
+        .filter(|value| *value != "*")
+        .and_then(|value| value.parse::<u64>().ok())
 }
 
 fn response_content_length(response: &reqwest::Response) -> Option<u64> {
@@ -510,7 +571,7 @@ async fn download_model_file(
     url: &str,
     dest: &Path,
     downloaded: &mut u64,
-    total: Option<u64>,
+    total: &mut Option<u64>,
 ) -> Result<(), String> {
     let part = dest.with_file_name(format!(
         "{}.part",
@@ -531,15 +592,22 @@ async fn download_model_file(
         ));
     }
 
+    let prior_downloaded = *downloaded;
     let fallback_file_total = response_content_length(&response);
+    if let Some(file_total) = fallback_file_total {
+        // Expand overall total when we learn this file's true size (e.g. RenikudPlus).
+        let minimum = prior_downloaded.saturating_add(file_total);
+        *total = Some(total.unwrap_or(0).max(minimum));
+    }
+
     emit_progress(
         app,
         ModelDownloadProgress {
             downloaded: *downloaded,
-            total,
+            total: *total,
             progress: total
                 .filter(|total| *total > 0)
-                .map(|total| *downloaded as f64 / total as f64),
+                .map(|total| (*downloaded as f64 / total as f64).clamp(0.0, 0.99)),
             stage: "downloading",
         },
     );
@@ -557,20 +625,31 @@ async fn download_model_file(
         file.write_all(&chunk)
             .await
             .map_err(|err| format!("failed to write {}: {err}", part.display()))?;
-        let progress_total = total.or(fallback_file_total);
+        if let Some(t) = total.as_mut() {
+            if *downloaded > *t {
+                *t = *downloaded;
+            }
+        }
+        let progress_total = (*total).or(fallback_file_total);
         let progress_downloaded = if total.is_some() {
             *downloaded
         } else {
             file_downloaded
         };
+        let ratio = progress_total.filter(|total| *total > 0).map(|total| {
+            let value = progress_downloaded as f64 / total as f64;
+            if progress_downloaded >= total {
+                1.0
+            } else {
+                value.clamp(0.0, 0.99)
+            }
+        });
         emit_progress(
             app,
             ModelDownloadProgress {
                 downloaded: progress_downloaded,
                 total: progress_total,
-                progress: progress_total
-                    .filter(|total| *total > 0)
-                    .map(|total| progress_downloaded as f64 / total as f64),
+                progress: ratio,
                 stage: "downloading",
             },
         );

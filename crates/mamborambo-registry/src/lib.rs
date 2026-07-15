@@ -100,7 +100,7 @@ const BLUE: RuntimeManifest = RuntimeManifest {
     id: DEFAULT_RUNTIME_ID,
     name: "BlueTTS",
     version: "blue-onnx-v2",
-    size: "~275 MB",
+    size: "~560 MB",
     description: "Fast local speech for Hebrew and English.",
     directory: "blue-onnx-v2",
     install_kind: InstallKind::Files,

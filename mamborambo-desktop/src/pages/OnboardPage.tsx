@@ -16,6 +16,17 @@ type PageProps = {
 
 type RuntimeId = ModelBundle["runtime"];
 
+function estimateBytes(sizeLabel?: string): number {
+  if (!sizeLabel) return 560 * 1024 * 1024;
+  const match = sizeLabel.match(/([\d.]+)\s*(gb|mb|kb)/i);
+  if (!match) return 560 * 1024 * 1024;
+  const value = Number(match[1]);
+  const unit = match[2].toLowerCase();
+  if (unit === "gb") return value * 1024 * 1024 * 1024;
+  if (unit === "mb") return value * 1024 * 1024;
+  return value * 1024;
+}
+
 export function OnboardPage({ bundle, setBundle }: PageProps) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -77,26 +88,38 @@ export function OnboardPage({ bundle, setBundle }: PageProps) {
     }
   }
 
-  const progressValue = Math.round(Math.min(1, Math.max(0, progress?.progress ?? 0)) * 100);
-  const hasProgressPercent = typeof progress?.progress === "number";
-  const progressLabel = hasProgressPercent
-    ? `${progressValue}%`
-    : progress?.downloaded
-      ? filesize(progress.downloaded, { standard: "jedec" })
-      : "Starting";
-  const stageLabel = progress?.stage === "extracting" ? "Optimizing models..." : "Downloading voice model...";
   const options = (sources.length ? sources : [
     {
       id: "blue",
       name: "BlueTTS",
       version: "blue-onnx-v2",
-      size: "~275 MB",
+      size: "~560 MB",
       description: "Local Hebrew and English speech",
       files: [],
       directory: "blue-onnx-v2",
       capabilities: { hebrew: true, streaming: true, voice_reference: false, fixed_voices: true },
     },
   ]) as ModelSource[];
+  const selectedSource = options.find((option) => option.id === runtime) ?? options[0];
+  const progressValue = (() => {
+    if (progress?.stage === "extracting") return 100;
+    if (typeof progress?.progress === "number") {
+      return Math.round(Math.min(1, Math.max(0, progress.progress)) * 100);
+    }
+    if (progress?.downloaded) {
+      const total =
+        typeof progress.total === "number" && progress.total > 0
+          ? progress.total
+          : estimateBytes(selectedSource?.size);
+      return Math.round(Math.min(0.99, progress.downloaded / total) * 100);
+    }
+    return busy ? 4 : 0;
+  })();
+  const progressLabel =
+    progress?.stage === "extracting"
+      ? "100%"
+      : `${progressValue}%`;
+  const stageLabel = progress?.stage === "extracting" ? "Optimizing models..." : "Downloading voice model...";
 
   return (
     <main className="grid min-h-screen place-items-center bg-background p-6 text-primary sm:p-12">
@@ -177,7 +200,7 @@ export function OnboardPage({ bundle, setBundle }: PageProps) {
                 <Eyebrow>Local Infrastructure</Eyebrow>
                 <h3 className="text-base font-semibold tracking-tight">{bundles[runtime]?.version ?? "blue-onnx-v2"}</h3>
                 <p className="text-xs text-secondary opacity-40">
-                  {bundles[runtime]?.installed ? "Already installed locally" : "Initial setup: ~275 MB storage"}
+                  {bundles[runtime]?.installed ? "Already installed locally" : "Initial setup: ~560 MB storage (BlueTTS + RenikudPlus)"}
                 </p>
               </div>
               <Button onClick={() => selectRuntime(runtime)} disabled={busy} className="h-11 px-6 text-sm shadow-lg shadow-primary/5">
@@ -208,12 +231,12 @@ export function OnboardPage({ bundle, setBundle }: PageProps) {
                   </span>
                   <span className="font-mono text-base">{progressLabel}</span>
                 </div>
-                <Progress value={progress?.stage === "extracting" ? 100 : hasProgressPercent ? progressValue : 8} />
+                <Progress value={progressValue} />
                 {progress?.downloaded ? (
                   <p className="mt-3 text-xs font-medium text-secondary opacity-50">
                     {progress.total
                       ? `${filesize(progress.downloaded, { standard: "jedec" })} of ${filesize(progress.total, { standard: "jedec" })}`
-                      : `${filesize(progress.downloaded, { standard: "jedec" })} downloaded`}
+                      : `${filesize(progress.downloaded, { standard: "jedec" })} of ~${filesize(estimateBytes(selectedSource?.size), { standard: "jedec" })}`}
                   </p>
                 ) : null}
               </motion.div>

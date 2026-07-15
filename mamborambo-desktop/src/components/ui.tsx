@@ -31,9 +31,9 @@ export function Progress({ value }: { value: number }) {
     <div className="h-1.5 w-full overflow-hidden rounded-full bg-border/20">
       <motion.div
         className="h-full bg-primary"
-        initial={{ width: 0 }}
+        initial={false}
         animate={{ width: `${Math.max(0, Math.min(100, value))}%` }}
-        transition={{ type: "spring", bounce: 0, duration: 0.5 }}
+        transition={{ duration: 0.2, ease: "easeOut" }}
       />
     </div>
   );
