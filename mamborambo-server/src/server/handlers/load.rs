@@ -92,7 +92,7 @@ mod tests {
             blue_load_params(LoadBody {
                 runtime: "blue".into(),
                 model_path: "/models/blue".into(),
-                renikud_path: "/models/renikud.onnx".into(),
+                renikud_path: "/models/renikud-plus.onnx".into(),
                 hebrew_g2p_engine: "renikud".into(),
                 phonikud_path: String::new(),
                 speaker: 0,
