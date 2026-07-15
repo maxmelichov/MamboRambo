@@ -244,6 +244,11 @@ fn blue_bundle(app: &tauri::AppHandle) -> Result<ModelBundle, String> {
     let source = runtime_source("blue").ok_or_else(|| "missing Blue source".to_string())?;
     let dir = models_root(app)?.join(BLUE_MODEL_DIR);
     let renikud_path = dir.join("renikud-plus.onnx");
+    // Drop the old thewh1teagle Renikud file so we never load or re-count it.
+    let legacy_renikud = dir.join("renikud.onnx");
+    if legacy_renikud.is_file() {
+        let _ = std::fs::remove_file(&legacy_renikud);
+    }
     let required = [
         "duration_predictor.onnx",
         "text_encoder.onnx",

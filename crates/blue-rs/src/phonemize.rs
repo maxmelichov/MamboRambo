@@ -4,14 +4,14 @@ use anyhow::{Result, anyhow, bail};
 use espeak_rs::text_to_phonemes;
 use ort::session::Session;
 use regex::Regex;
-use renikud_rs::G2P;
+use renikud_plus_rs::G2P;
 
 use crate::handling::{NikudPhonemizer, contains_nikud, prepare_text_for_synthesis};
 
 /// Languages supported by the BlueTTS model.
 ///
 /// Codes:
-/// - `he` Hebrew, via Renikud when Hebrew characters are present.
+/// - `he` Hebrew, via RenikudPlus when Hebrew characters are present.
 /// - `en` English, via eSpeak voice `en-us`.
 /// - `es` Spanish, via eSpeak voice `es`.
 /// - `de` German, via eSpeak voice `de`.
@@ -71,6 +71,9 @@ pub struct Phonemizer {
     ///
     /// When set, vocalized Hebrew is passed to this engine with niqqud intact.
     nikud: Option<Box<dyn NikudPhonemizer + Send>>,
+    /// RenikudPlus speaker conditioning (0=unknown, 1=male, 2=female).
+    speaker: u8,
+    target_speaker: u8,
 }
 
 impl Phonemizer {
@@ -79,7 +82,7 @@ impl Phonemizer {
     /// Supported language codes are `he`, `en`, `es`, `de`, and `it`. Use
     /// [`Self::with_language`] or [`Self::phonemize_lang`] to select one.
     ///
-    /// `renikud_model` is only required when phonemizing Hebrew text.
+    /// `renikud_model` is only required when phonemizing Hebrew text (RenikudPlus ONNX).
     pub fn new(renikud_model: Option<impl AsRef<Path>>) -> Result<Self> {
         Self::with_language(renikud_model, Language::Hebrew)
     }
@@ -87,7 +90,7 @@ impl Phonemizer {
     /// Create a phonemizer with an explicit default language.
     ///
     /// Supported model language codes are `he`, `en`, `es`, `de`, and `it`.
-    /// Non-Hebrew languages use eSpeak. Hebrew uses Renikud when Hebrew
+    /// Non-Hebrew languages use eSpeak. Hebrew uses RenikudPlus when Hebrew
     /// characters are present.
     pub fn with_language(
         renikud_model: Option<impl AsRef<Path>>,
@@ -107,10 +110,12 @@ impl Phonemizer {
                 r"(?is)<(en|en-us|he|es|de|ge|it)>(.*?)</(?:en|en-us|he|es|de|ge|it)>",
             )?,
             nikud: None,
+            speaker: 0,
+            target_speaker: 0,
         })
     }
 
-    /// Create a phonemizer from embedded Renikud ONNX bytes.
+    /// Create a phonemizer from embedded RenikudPlus ONNX bytes.
     ///
     /// Supported model language codes are `he`, `en`, `es`, `de`, and `it`.
     /// This is useful for self-contained binaries built with `include_bytes!`.
@@ -127,7 +132,15 @@ impl Phonemizer {
                 r"(?is)<(en|en-us|he|es|de|ge|it)>(.*?)</(?:en|en-us|he|es|de|ge|it)>",
             )?,
             nikud: None,
+            speaker: 0,
+            target_speaker: 0,
         })
+    }
+
+    /// Set RenikudPlus speaker conditioning (0=unknown, 1=male, 2=female).
+    pub fn set_speakers(&mut self, speaker: u8, target_speaker: u8) {
+        self.speaker = speaker;
+        self.target_speaker = target_speaker;
     }
 
     /// Attach a Phonikud-compatible engine for niqqud-bearing Hebrew words.
@@ -141,7 +154,7 @@ impl Phonemizer {
     /// Phonemize text using the default language.
     ///
     /// Supported model language codes are `he`, `en`, `es`, `de`, and `it`.
-    /// For mixed Hebrew/Latin input, Hebrew spans use Renikud and Latin spans
+    /// For mixed Hebrew/Latin input, Hebrew spans use RenikudPlus and Latin spans
     /// use the default language's eSpeak voice, falling back to English for
     /// Hebrew default.
     pub fn phonemize(&mut self, text: &str) -> Result<String> {
@@ -310,9 +323,11 @@ impl Phonemizer {
 
     fn phonemize_renikud(&mut self, text: &str) -> Result<String> {
         let Some(g2p) = self.hebrew.as_mut() else {
-            bail!("Hebrew phonemization needs a Renikud model path");
+            bail!("Hebrew phonemization needs a RenikudPlus model path");
         };
-        g2p.phonemize(text)
+        let speaker = self.speaker;
+        let target_speaker = self.target_speaker;
+        g2p.phonemize(text, speaker, target_speaker)
     }
 }
 

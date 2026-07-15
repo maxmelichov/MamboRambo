@@ -114,8 +114,8 @@ export function SettingsPage({ bundle, advancedMode, setAdvancedMode, hebrewG2pE
                   className={`relative rounded-xl border p-5 text-left transition-all ${hebrewG2pEngine === "renikud" ? "border-primary bg-primary text-white shadow-lg shadow-primary/10" : "border-border/40 bg-background/20 text-primary hover:border-primary/50"}`}
                 >
                   {hebrewG2pEngine === "renikud" && <Check className="absolute right-4 top-4 h-4 w-4" />}
-                  <p className="text-sm font-bold">Renikud</p>
-                  <p className={`mt-1 text-xs leading-relaxed ${hebrewG2pEngine === "renikud" ? "text-white/70" : "text-secondary/60"}`}>Fast, direct Hebrew-to-IPA conversion for everyday text.</p>
+                  <p className="text-sm font-bold">RenikudPlus</p>
+                  <p className={`mt-1 text-xs leading-relaxed ${hebrewG2pEngine === "renikud" ? "text-white/70" : "text-secondary/60"}`}>Hebrew-to-IPA via the RenikudPlus ONNX model with speaker/target conditioning.</p>
                 </button>
                 <button
                   type="button"
