@@ -18,7 +18,7 @@ function preferredAsset(platform: Platform): ReleaseAsset | undefined {
   const assets = latestRelease.assets.filter((asset) => asset.platform === platform)
 
   if (platform === "windows") {
-    return assets.find((asset) => asset.kind === "exe") ?? assets.find((asset) => asset.kind === "msi")
+    return assets.find((asset) => asset.kind === "exe") ?? assets.find((asset) => asset.kind === "msi") ?? assets.find((asset) => asset.kind === "zip")
   }
 
   if (platform === "linux") {

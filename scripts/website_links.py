@@ -63,6 +63,9 @@ def asset_info(name: str) -> dict[str, str] | None:
     if lower.endswith(".msi"):
         return {"platform": "windows", "arch": "windows-x86_64", "kind": "msi"}
 
+    if lower.endswith("-portable.zip") or (lower.endswith(".zip") and "portable" in lower):
+        return {"platform": "windows", "arch": "windows-x86_64", "kind": "zip"}
+
     if lower.endswith(".appimage"):
         return {"platform": "linux", "arch": "linux-x86_64", "kind": "appimage"}
 
